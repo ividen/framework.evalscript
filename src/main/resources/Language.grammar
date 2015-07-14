@@ -1,0 +1,102 @@
+program                 = statementList? 
+
+statementList           = statement+
+
+//statements
+statement               = block | emptyStatement | expressionStatement | ifStatement | iterationStatement | switchStatement
+
+
+// program block (with visibility scopes)
+block                   = '{' statementList? '}' 
+emptyStatement          = 
+
+// If statement
+ifStatement             = if '(' expressionSequence ')' statement ( else statement )? 
+
+// Switch statement
+switchStatement         = switch '(' singleExpression ')' caseBlock
+caseBlock               = '{' caseClauses? ( defaultClause caseClauses? )? '}' 
+caseClauses             = caseClause+ 
+caseClause              = case expressionSequence ':' statementList? 
+defaultClause           = default ':' statementList? 
+
+//Iterations
+iterationStatement      = doWhile | whileDo | forInter | foreach
+doWhile                 = do statement while '(' expressionSequence ')'
+whileDo                 = while '(' expressionSequence ')' statement
+forInter                = for '(' expressionSequence? '' expressionSequence? '' expressionSequence? ')' statement
+foreach                 = for '(' identifier in expressionSequence ')' statement
+
+//Expressions
+expressionStatement     = expressionSequence (' '+ expressionSequence)*
+expressionSequence      = singleExpression ( ',' singleExpression )* 
+singleExpression        = singleExpression arguments                                             // ArgumentsExpression
+                        | singleExpression  '++'                                                 // PostIncrementExpression
+                        | singleExpression  '--'                                                 // PostDecreaseExpression
+                        | '++' singleExpression                                                  // PreIncrementExpression
+                        | '--' singleExpression                                                  // PreDecreaseExpression
+                        | '+' singleExpression                                                   // UnaryPlusExpression
+                        | '-' singleExpression                                                   // UnaryMinusExpression
+                        | '~' singleExpression                                                   // BitNotExpression
+                        | '!' singleExpression                                                   // NotExpression
+                        | singleExpression ( '*' | '/' | '%' ) singleExpression                  // MultiplicativeExpression
+                        | singleExpression ( '+' | '-' ) singleExpression                        // AdditiveExpression
+                        | singleExpression ( '<<' | '>>' | '>>>' ) singleExpression              // BitShiftExpression
+                        | singleExpression ( '<' | '>' | '<=' | '>=' ) singleExpression          // RelationalExpression
+                        | singleExpression in singleExpression                                   // InExpression
+                        | singleExpression ( '==' | '!=' | '===' | '!==' ) singleExpression      // EqualityExpression
+                        | singleExpression '&' singleExpression                                  // BitAndExpression
+                        | singleExpression '^' singleExpression                                  // BitXOrExpression
+                        | singleExpression '|' singleExpression                                  // BitOrExpression
+                        | singleExpression '&&' singleExpression                                 // LogicalAndExpression
+                        | singleExpression '||' singleExpression                                 // LogicalOrExpression
+                        | singleExpression '?' singleExpression ':' singleExpression             // TernaryExpression
+                        | singleExpression '=' expressionSequence                                // AssignmentExpression
+                        | singleExpression assignmentOperator expressionSequence                 // AssignmentOperatorExpression
+                        | identifier                                                             // IdentifierExpression
+                        | literal                                                                // LiteralExpression
+                        | arrayLiteral                                                           // ArrayLiteralExpression
+                        | '(' expressionSequence ')'                                            // ParenthesizedExpression
+
+arguments               = '(' argumentList? ')'
+argumentList            = singleExpression ( ',' singleExpression )* 
+
+identifier              = globalIdentifier | localIdentifier
+globalIdentifier        = '$' identifierWord*
+localIdentifier         = identifierWord
+identifierWord          = idStart idEnd*
+idStart                 = ([a-z] | [A-Z] | '_' )
+idEnd                   = (idStart | [0-9])+
+
+literal                 = nullLiteral
+                        | booleanLiteral
+                        | stringLiteral
+                        | numericLiteral 
+nullLiteral             = 'null' 
+booleanLiteral          = 'true' | 'false' 
+numericLiteral          = decimalLiteral | hexIntegerLiteral
+decimalLiteral          = -?(\d+(\.\d*)?|\d*\.\d+)([eE][+-]?\d+)?[fFdD]?
+hexIntegerLiteral       = 0(x|X)[0-9a-fA-F]+
+
+stringLiteral           = '"' doubleQuotString* '"' | '\'' singleQuotString* '\''
+doubleQuotString         = [^"\\\r\n]
+singleQuotString         = [^'\\\r\n]
+
+arrayLiteral            = '[' elementList? ','? elision? ']' 
+elementList             = elision? singleExpression ( ',' elision? singleExpression )* 
+elision                 = ','+ 
+
+
+assignmentOperator      = '*=' | '/=' | '%=' | '+=' | '-=' | '<<=' | '>>=' | '>>>=' | '&=' | '^=' | '|='
+
+break                   = 'break'
+do                      = 'do'
+case                    = 'case'
+else                    = 'else'
+continue                = 'continue'
+for                     = 'for'
+switch                  = 'switch'
+while                   = 'while'
+default                 = 'default'
+if                      = 'if'
+in                      = 'in'
