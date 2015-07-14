@@ -40,7 +40,9 @@ trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierPa
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
 }
 
-sealed trait Variable extends ProgramElement{
+sealed trait ExpressionElement extends ProgramElement
+
+sealed trait Variable extends ExpressionElement{
   def name : String
 }
 case class LocalVariable(name: String) extends Variable
@@ -54,7 +56,7 @@ trait IdentifierParser extends RegexParsers{
   def localVariable: Parser[V] = idName ^^ (LocalVariable(_))
 }
 
-sealed trait Literal[T] extends ProgramElement{
+sealed trait Literal[T] extends ExpressionElement{
   def value: T
 }
 
@@ -84,18 +86,17 @@ trait LiteralParser extends RegexParsers {
   private def toBooleanLiteral(x: String) = BooleanLiteral(x.toBoolean)
 }
 
-
 object Main extends ArithmExpression {
 
   def main(args: Array[String]) {
     //    val v2 = """true false null 10 20 30 10.1 0x1987FA 0x30 1000000000000000000000000000000"""
-    val v2 ="10 * 20 +( 10 * 20-30)*2"
+    val v2 ="$dsfsdf"
 
     //    val v2 = """0x1987FA"""
     //    val v3 = """ 'Test "1"' "Test '2'""""
 
 
-    println(parseAll(arithm, v2))
+    println(parseAll(variable, v2))
     //    println(parse(literal, v2))
     //    println(parse(literal, v3))
   }
