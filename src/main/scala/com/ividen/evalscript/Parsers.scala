@@ -12,9 +12,9 @@ trait RepeatParser extends RegexParsers
 
 trait Expression
 case class LiteralExpression(literal: Literal) extends Expression
-case class AddExpression(l: Expression,r: Expression) extends Expression
+case class PlusExpression(l: Expression,r: Expression) extends Expression
 case class MinusExpression(l: Expression,r: Expression) extends Expression
-case class DevideExpression(l: Expression,r: Expression) extends Expression
+case class DivideExpression(l: Expression,r: Expression) extends Expression
 case class MultiplyExpression(l: Expression,r: Expression) extends Expression
 case class ModExpression(l: Expression,r: Expression) extends Expression
 
@@ -23,13 +23,24 @@ trait ExpressionParser extends RegexParsers with LiteralParser {
 
   def singleExpression: Parser[Expression] = literalExpression | addExpression | minusExpression | multExpression | devideExpression | modExpression | parenthExpression
 
-  def literalExpression= literalElem ^^ (LiteralExpression(_))
-  def addExpression: Parser[Expression] = singleExpression ~ '+' ~ singleExpression ^^ (x => AddExpression(x._1._1,x._2))
+  def literalExpression= scriptLiteral ^^ (LiteralExpression(_))
+  def addExpression: Parser[Expression] = singleExpression ~ '+' ~ singleExpression ^^ (x => PlusExpression(x._1._1,x._2))
   def minusExpression: Parser[Expression] = singleExpression ~ '-' ~ singleExpression ^^ (x => MinusExpression(x._1._1,x._2))
   def multExpression: Parser[Expression] = singleExpression ~ '*' ~ singleExpression ^^ (x => MultiplyExpression(x._1._1,x._2))
-  def devideExpression: Parser[Expression] = singleExpression ~ '/' ~ singleExpression ^^ (x => DevideExpression(x._1._1,x._2))
+  def devideExpression: Parser[Expression] = singleExpression ~ '/' ~ singleExpression ^^ (x => DivideExpression(x._1._1,x._2))
   def modExpression: Parser[Expression] = singleExpression ~ '%' ~ singleExpression ^^ (x => ModExpression(x._1._1,x._2))
   def parenthExpression: Parser[Expression] = "(" ~> singleExpression <~ ")"
+}
+
+trait ArithmExpression extends RegexParsers with LiteralParser{
+  def arithm: Parser[Expression] = term ~ rep(plus | minus) ^^ foldExpression
+  def minus: Parser[Expression => Expression] = "-" ~> factor ^^ { case b => MinusExpression(_, b) }
+  def plus: Parser[Expression => Expression] = "+" ~> factor ^^ { case b => PlusExpression(_, b) }
+  def term: Parser[Expression] = factor ~ rep(times | divide) ^^ foldExpression
+  def times: Parser[Expression => Expression] = "*" ~> factor ^^ { case b => MultiplyExpression(_, b) }
+  def divide: Parser[Expression => Expression] = "/" ~> factor ^^ { case b => DivideExpression(_, b) }
+  private def factor: Parser[Expression] = scriptLiteral ^^ (LiteralExpression(_)) | "(" ~> arithm <~ ")"
+  private def foldExpression(exp: (Expression ~ List[(Expression) => Expression])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
 }
 
 sealed trait Literal
@@ -44,8 +55,8 @@ trait LiteralParser extends RegexParsers {
   def booleanLiteral = ("true" | "false") ^^ toBooleanLiteral
   def numericLiteral = hexIntegerLiteral | decimalLiteral
   def stringLiteral = doubleQuoteStringLiteral | singleQuoteStringLiteral
-  def literalElem = nullLiteral | booleanLiteral | numericLiteral | stringLiteral
-  def literals = rep(literalElem)
+  def scriptLiteral = nullLiteral | booleanLiteral | numericLiteral | stringLiteral
+  def scriptLiterals = rep(scriptLiteral)
 
   private def decimalLiteral= """-?(\d+(\.\d*)?|\d*\.\d+)([eE][+-]?\d+)?[fFdD]?""".r ^^ toDecimalLiteral
   private def hexIntegerLiteral = "0(x|X)[0-9a-fA-F]+".r ^^ toHexDecimalLiteral
@@ -58,17 +69,17 @@ trait LiteralParser extends RegexParsers {
 }
 
 
-object Main extends LiteralParser {
+object Main extends ArithmExpression {
 
   def main(args: Array[String]) {
     //    val v2 = """true false null 10 20 30 10.1 0x1987FA 0x30 1000000000000000000000000000000"""
-    val v2 = "'Test \\u1010 \"test\"'"
+    val v2 ="10 * 20 + 10 * 20-30"
 
     //    val v2 = """0x1987FA"""
     //    val v3 = """ 'Test "1"' "Test '2'""""
 
 
-    println(parseAll(literals, v2))
+    println(parseAll(arithm, v2))
     //    println(parse(literal, v2))
     //    println(parse(literal, v3))
   }
