@@ -15,6 +15,7 @@ trait RepeatParser extends RegexParsers
 
 sealed trait Expression extends ProgramElement
 case class LiteralExpression(literal: Literal[_]) extends Expression
+case class VariableExpression(variable:Variable) extends Expression
 case class PlusExpression(l: Expression,r: Expression) extends Expression
 case class MinusExpression(l: Expression,r: Expression) extends Expression
 case class DivideExpression(l: Expression,r: Expression) extends Expression
@@ -25,7 +26,7 @@ trait ExpressionParser extends RegexParsers  with ArithmExpression{
   def expression =  arithm
 }
 
-trait ArithmExpression extends RegexParsers with LiteralParser{
+trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierParser{
   type E = Expression
 
   def arithm: Parser[E] = term ~ rep(plus | minus) ^^ foldExpression
@@ -37,6 +38,20 @@ trait ArithmExpression extends RegexParsers with LiteralParser{
   private def term: Parser[E] = factor ~ rep(times | divide | mod) ^^ foldExpression
   private def factor: Parser[E] = scriptLiteral ^^ (LiteralExpression(_)) | "(" ~> arithm <~ ")"
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
+}
+
+sealed trait Variable extends ProgramElement{
+  def name : String
+}
+case class LocalVariable(name: String) extends Variable
+case class GlobalVairable(name: String) extends Variable
+
+trait IdentifierParser extends RegexParsers{
+  type V = Variable
+  val idName = "[a-zA-Z_]+([a-zA-Z0-9_])*".r
+  def variable: Parser[V] = globalVariable | localVariable
+  def globalVariable: Parser[V] = "$" ~> idName ^^ (GlobalVairable(_))
+  def localVariable: Parser[V] = idName ^^ (LocalVariable(_))
 }
 
 sealed trait Literal[T] extends ProgramElement{
