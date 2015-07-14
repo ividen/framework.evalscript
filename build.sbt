@@ -4,6 +4,8 @@ name := "framework-evalscript"
 
 version := "1.0-SNAPSHOT"
 
-scalaVersion := "2.11.5"
+scalaVersion := "2.10.4"
+
+libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.0"
 
 
