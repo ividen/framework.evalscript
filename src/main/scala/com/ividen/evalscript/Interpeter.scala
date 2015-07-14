@@ -13,7 +13,7 @@ object Interpreter {
     case MinusExpression(l, r) => processExpression(l) - processExpression(r)
     case DivideExpression(l, r) => processExpression(l) / processExpression(r)
     case MultiplyExpression(l, r) => processExpression(l) * processExpression(r)
-    case ModExpression(l, r) => processExpression(l) % processExpression(r)
+    case RemainderExpression(l, r) => processExpression(l) % processExpression(r)
   }
 }
 
@@ -74,6 +74,17 @@ class ExecutionContext(val vars: mutable.HashMap[String,String] = new mutable.Ha
 object Main2 extends EvalScriptParser {
   def main(args: Array[String]) {
     val s = """ 'Test "1"' + " and " +"Test '2'" + (10 *10)  """
+
+    val script =
+      """
+        |if($purchases<100) multiplier = 2
+        |else($purchase<200) multiplier = 3
+        |else($purchase<300) multiplier = 4
+        |else multiplier = 100
+        |
+        |$amount *= multiplier
+        |
+      """.stripMargin
 
     val res = parseAll(program, s).get
     println(res)

@@ -20,7 +20,12 @@ case class PlusExpression(l: Expression,r: Expression) extends Expression
 case class MinusExpression(l: Expression,r: Expression) extends Expression
 case class DivideExpression(l: Expression,r: Expression) extends Expression
 case class MultiplyExpression(l: Expression,r: Expression) extends Expression
-case class ModExpression(l: Expression,r: Expression) extends Expression
+case class RemainderExpression(l: Expression,r: Expression) extends Expression
+case class LogicalNotExpression(r: Expression) extends Expression
+case class BitwiseNotExpression(r: Expression) extends Expression
+case class BitwiseLeftShiftExpression(l: Expression,r : Expression) extends Expression
+case class BitwiseRightShiftExpression(l: Expression,r : Expression) extends Expression
+case class BitwiseUnsignedRightShiftExpression(l: Expression,r : Expression) extends Expression
 
 trait ExpressionParser extends RegexParsers  with ArithmExpression{
   def expression =  arithm
@@ -29,16 +34,30 @@ trait ExpressionParser extends RegexParsers  with ArithmExpression{
 trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierParser{
   type E = Expression
 
-  def arithm: Parser[E] = term ~ rep(plus | minus) ^^ foldExpression
-  def minus: Parser[E => E] = "-" ~> term ^^ { case b => MinusExpression(_, b) }
-  def plus: Parser[E => E] = "+" ~> term ^^ { case b => PlusExpression(_, b) }
+  def arithm: Parser[E] = multPrecedence ~ rep(plus | minus) ^^ foldExpression
+
+  def minus: Parser[E => E] = "-" ~> multPrecedence ^^ { case b => MinusExpression(_, b) }
+  def plus: Parser[E => E] = "+" ~> multPrecedence ^^ { case b => PlusExpression(_, b) }
+
   def times: Parser[E => E] = "*" ~> factor ^^ { case b => MultiplyExpression(_, b) }
   def divide: Parser[E => E] = "/" ~> factor ^^ { case b => DivideExpression(_, b) }
-  def mod: Parser[E => E] = "%" ~> factor ^^ { case b => ModExpression(_, b) }
-  private def term: Parser[E] = factor ~ rep(times | divide | mod) ^^ foldExpression
+  def remainder: Parser[E => E] = "%" ~> factor ^^ { case b => RemainderExpression(_, b) }
+
+  def logicalNot: Parser[E] = "!" ~> factor ^^ (LogicalNotExpression(_))
+  def bitwiseNot: Parser[E] = "~" ~> factor ^^ (BitwiseNotExpression(_))
+
+  def bitwiseLeftShift: Parser[E => E] = "<<" ~> factor ^^ { case b => BitwiseLeftShiftExpression(_, b) }
+  def bitwiseRightShift: Parser[E => E] = ">>" ~> factor ^^ { case b => BitwiseRightShiftExpression(_, b) }
+  def bitwiseUnsignedRightShift: Parser[E => E] = ">>>" ~> factor ^^ { case b => BitwiseUnsignedRightShiftExpression(_, b) }
+
+  private def bitwiseShiftPrecendence = addPrecendence ~ rep(bitwiseLeftShift | bitwiseRightShift | bitwiseUnsignedRightShift) ^^ foldExpression
+  private def addPrecendence = multPrecedence ~ rep(plus | minus) ^^ foldExpression
+  private def logicalUnaryPrecendence = factor ~ rep(logicalNot | bitwiseNot) ^^ foldExpression
+  private def multPrecedence: Parser[E] = logicalUnaryPrecendence ~ rep(times | divide | remainder) ^^ foldExpression
   private def factor: Parser[E] = scriptLiteral ^^ (LiteralExpression(_)) | "(" ~> arithm <~ ")"
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
 }
+
 
 sealed trait ExpressionElement extends ProgramElement
 
