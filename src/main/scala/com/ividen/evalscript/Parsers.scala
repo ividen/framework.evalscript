@@ -16,26 +16,26 @@ trait RepeatParser extends RegexParsers
 sealed trait Expression extends ProgramElement
 case class LiteralExpression(literal: Literal) extends Expression
 case class VariableExpression(variable:Variable) extends Expression
-case class PlusExpression(l: Expression,r: Expression) extends Expression
-case class MinusExpression(l: Expression,r: Expression) extends Expression
-case class DivideExpression(l: Expression,r: Expression) extends Expression
-case class MultiplyExpression(l: Expression,r: Expression) extends Expression
-case class RemainderExpression(l: Expression,r: Expression) extends Expression
-case class LogicalNotExpression(r: Expression) extends Expression
-case class BitwiseNotExpression(r: Expression) extends Expression
-case class UnaryNegationExpression(r: Expression) extends Expression
-case class UnaryPlusExpression(r: Expression) extends Expression
-case class PrefixIncrementExpression(r: Expression) extends Expression
-case class PrefixDecrementExpression(r: Expression) extends Expression
-case class BitwiseLeftShiftExpression(l: Expression,r : Expression) extends Expression
-case class BitwiseRightShiftExpression(l: Expression,r : Expression) extends Expression
-case class PostfixIncrementExpression(l: Expression) extends Expression
-case class PostfixDecrementExpression(l: Expression) extends Expression
-case class BitwiseAndExpression(l: Expression, r: Expression) extends Expression
-case class BitwiseXorExpression(l: Expression, r: Expression) extends Expression
-case class BitwiseOrExpression(l: Expression, r: Expression) extends Expression
-case class LogicalAndExpression(l: Expression,r: Expression) extends Expression
-case class LogicalOrExpression(l: Expression, r: Expression) extends Expression
+case class `:+`(l: Expression,r: Expression) extends Expression
+case class `:-`(l: Expression,r: Expression) extends Expression
+case class `/`(l: Expression,r: Expression) extends Expression
+case class `*`(l: Expression,r: Expression) extends Expression
+case class `%`(l: Expression,r: Expression) extends Expression
+case class `!:`(r: Expression) extends Expression
+case class `~:`(r: Expression) extends Expression
+case class `-:`(r: Expression) extends Expression
+case class `+:`(r: Expression) extends Expression
+case class `++:`(r: Expression) extends Expression
+case class `--:`(r: Expression) extends Expression
+case class `<<`(l: Expression,r : Expression) extends Expression
+case class `>>`(l: Expression,r : Expression) extends Expression
+case class `++`(l: Expression) extends Expression
+case class `--`(l: Expression) extends Expression
+case class `&`(l: Expression, r: Expression) extends Expression
+case class `^`(l: Expression, r: Expression) extends Expression
+case class `|`(l: Expression, r: Expression) extends Expression
+case class `&&`(l: Expression,r: Expression) extends Expression
+case class `||`(l: Expression, r: Expression) extends Expression
 
 trait ExpressionParser extends RegexParsers  with ArithmExpression{
   def expression =  arithm
@@ -46,28 +46,28 @@ trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierPa
 
   def arithm: Parser[E] = logicalOrGroup
 
-  def minus: Parser[E => E] = "-" ~> multiplyGroup ^^ { case b => MinusExpression(_, b) }
-  def plus: Parser[E => E] = "+" ~> multiplyGroup ^^ { case b => PlusExpression(_, b) }
+  def minus: Parser[E => E] = ("-" ~> multiplyGroup) ^^ { case b => `:-`(_, b) }
+  def plus: Parser[E => E] = ("+" ~> multiplyGroup) ^^ { case b => `:+`(_, b) }
 
-  def times: Parser[E => E] = "*" ~> factor ^^ { case b => MultiplyExpression(_, b) }
-  def divide: Parser[E => E] = "/" ~> factor ^^ { case b => DivideExpression(_, b) }
-  def remainder: Parser[E => E] = "%" ~> factor ^^ { case b => RemainderExpression(_, b) }
+  def times: Parser[E => E] = "*" ~> factor ^^ { case b => `*`(_, b) }
+  def divide: Parser[E => E] = "/" ~> factor ^^ { case b => `/`(_, b) }
+  def remainder: Parser[E => E] = "%" ~> factor ^^ { case b => `%`(_, b) }
 
-  def logicalNot: Parser[E] = "!" ~> factor ^^ (LogicalNotExpression(_))
-  def bitwiseNot: Parser[E] = "~" ~> factor ^^ (BitwiseNotExpression(_))
-  def prefixInc: Parser[E] = "++" ~> factor ^^ (PrefixIncrementExpression(_))
-  def prefixDec: Parser[E] = "--" ~> factor ^^ (PrefixDecrementExpression(_))
-  def unaryNegate: Parser[E] = "-" ~> factor ^^ (UnaryNegationExpression(_))
-  def unaryPlus: Parser[E] = "+" ~> factor ^^ (UnaryNegationExpression(_))
+  def logicalNot: Parser[E] = "!" ~> factor ^^ `!:`
+  def bitwiseNot: Parser[E] = "~" ~> factor ^^ `~:`
+  def prefixInc: Parser[E] = "++" ~> factor ^^ `++:`
+  def prefixDec: Parser[E] = "--" ~> factor ^^ `--:`
+  def unaryNegate: Parser[E] = "-" ~> factor ^^ `-:`
+  def unaryPlus: Parser[E] = "+" ~> factor ^^ `+:`
 
-  def bitwiseLeftShift: Parser[E => E] = "<<" ~> addGroup ^^ { case b => BitwiseLeftShiftExpression(_, b) }
-  def bitwiseRightShift: Parser[E => E] = ">>" ~> addGroup ^^ { case b => BitwiseRightShiftExpression(_, b) }
+  def bitwiseLeftShift: Parser[E => E] = "<<" ~> addGroup ^^ { case b => `>>`(_, b) }
+  def bitwiseRightShift: Parser[E => E] = ">>" ~> addGroup ^^ { case b => `<<`(_, b) }
 
-  def bitwiseAnd: Parser[E => E] = "&" ~> bitwiseShiftGroup ^^ {case b=>BitwiseAndExpression(_,b)}
-  def bitwiseXor: Parser[E => E] = "^" ~> bitwiseAndGroup ^^ {case b=>BitwiseXorExpression(_,b)}
-  def bitwiseOr: Parser[E => E] = "|" ~> bitwiseXorGroup ^^ {case b=>BitwiseOrExpression(_,b)}
-  def logicalAnd: Parser[E => E] = "&&" ~> bitwiseOrGroup ^^ {case b=>LogicalAndExpression(_,b)}
-  def logicalOr: Parser[E => E] = "||" ~> logicalAndGroup ^^ {case b=>LogicalOrExpression(_,b)}
+  def bitwiseAnd: Parser[E => E] = "&" ~> bitwiseShiftGroup ^^ {case b=>`&`(_,b)}
+  def bitwiseXor: Parser[E => E] = "^" ~> bitwiseAndGroup ^^ {case b=>`^`(_,b)}
+  def bitwiseOr: Parser[E => E] = "|" ~> bitwiseXorGroup ^^ {case b=>`|`(_,b)}
+  def logicalAnd: Parser[E => E] = "&&" ~> bitwiseOrGroup ^^ {case b=>`&&`(_,b)}
+  def logicalOr: Parser[E => E] = "||" ~> logicalAndGroup ^^ {case b=>`||`(_,b)}
 
 
   private def factor: Parser[E] = scriptLiteral ^^ (LiteralExpression(_)) | "(" ~> arithm <~ ")" | unaryGroup
@@ -205,7 +205,7 @@ object Main extends EvalScriptParser {
 
   def main(args: Array[String]) {
     //    val v2 = """true false null 10 20 30 10.1 0x1987FA 0x30 1000000000000000000000000000000"""
-    val v2 ="100 - (true && false)"
+    val v2 ="10+10*10+20*30 - (10-1)/(1+2)"
 
     //    val v2 = """0x1987FA"""
     //    val v3 = """ 'Test "1"' "Test '2'""""
