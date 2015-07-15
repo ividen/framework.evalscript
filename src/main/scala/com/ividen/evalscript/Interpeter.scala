@@ -49,7 +49,7 @@ object Main2 extends EvalScriptParser {
 
     val script =
       """
-        |if($purchases<100) multiplier = 2
+        |if($purchases<100)  multiplier = 2
         |else($purchase<200) multiplier = 3
         |else($purchase<300) multiplier = 4
         |else multiplier = 100

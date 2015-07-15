@@ -2,7 +2,6 @@ package com.ividen.evalscript
 
 import org.apache.commons.lang3.StringEscapeUtils
 import scala.util.parsing.combinator._
-
 trait ProgramElement
 
 trait EvalScriptParser extends ControlFlowParser with ExpressionParser{
@@ -36,6 +35,21 @@ case class `^`(l: Expression, r: Expression) extends Expression
 case class `|`(l: Expression, r: Expression) extends Expression
 case class `&&`(l: Expression,r: Expression) extends Expression
 case class `||`(l: Expression, r: Expression) extends Expression
+case class `=`(l:Expression,r: Expression) extends Expression
+case class `+=`(l:Expression,r: Expression) extends Expression
+case class `-=`(l:Expression,r: Expression) extends Expression
+case class `*=`(l:Expression,r: Expression) extends Expression
+case class `/=`(l:Expression,r: Expression) extends Expression
+case class `%=`(l:Expression,r: Expression) extends Expression
+case class `!=`(l:Expression,r: Expression) extends Expression
+case class `~=`(l:Expression,r: Expression) extends Expression
+case class `>>=`(l:Expression,r: Expression) extends Expression
+case class `<<=`(l:Expression,r: Expression) extends Expression
+case class `&=`(l:Expression,r: Expression) extends Expression
+case class `^=`(l:Expression,r: Expression) extends Expression
+case class `|=`(l:Expression,r: Expression) extends Expression
+case class `&&=`(l:Expression,r: Expression) extends Expression
+case class `||=`(l:Expression,r: Expression) extends Expression
 
 trait ExpressionParser extends RegexParsers  with ArithmExpression{
   def expression =  arithm
@@ -63,12 +77,11 @@ trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierPa
   def bitwiseLeftShift: Parser[E => E] = "<<" ~> addGroup ^^ { case b => `>>`(_, b) }
   def bitwiseRightShift: Parser[E => E] = ">>" ~> addGroup ^^ { case b => `<<`(_, b) }
 
-  def bitwiseAnd: Parser[E => E] = "&" ~> bitwiseShiftGroup ^^ {case b=>`&`(_,b)}
-  def bitwiseXor: Parser[E => E] = "^" ~> bitwiseAndGroup ^^ {case b=>`^`(_,b)}
-  def bitwiseOr: Parser[E => E] = "|" ~> bitwiseXorGroup ^^ {case b=>`|`(_,b)}
-  def logicalAnd: Parser[E => E] = "&&" ~> bitwiseOrGroup ^^ {case b=>`&&`(_,b)}
-  def logicalOr: Parser[E => E] = "||" ~> logicalAndGroup ^^ {case b=>`||`(_,b)}
-
+  def bitwiseAnd: Parser[E => E] = "&" ~> bitwiseShiftGroup ^^ { case b => `&`(_, b) }
+  def bitwiseXor: Parser[E => E] = "^" ~> bitwiseAndGroup ^^ { case b => `^`(_, b) }
+  def bitwiseOr: Parser[E => E] = "|" ~> bitwiseXorGroup ^^ { case b => `|`(_, b) }
+  def logicalAnd: Parser[E => E] = "&&" ~> bitwiseOrGroup ^^ { case b => `&&`(_, b) }
+  def logicalOr: Parser[E => E] = "||" ~> logicalAndGroup ^^ { case b => `||`(_, b) }
 
   private def factor: Parser[E] = scriptLiteral ^^ (LiteralExpression(_)) | "(" ~> arithm <~ ")" | unaryGroup
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
@@ -84,6 +97,25 @@ trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierPa
   private def bitwiseShiftGroup = operationPrecedence(addGroup,bitwiseLeftShift | bitwiseRightShift)
   private def operationPrecedence (before: Parser[E], func : Parser[E=>E]) = before ~ rep(func) ^^ foldExpression
 }
+
+trait AssignmentParser extends ArithmExpression{
+  def assign: Parser[E] = variable <~ "=" ~> arithm ^^ { case (v, a) => `=`(v, a) }
+  def assignPlus: Parser[E] = variable <~ "+=" ~> arithm ^^ { case (v, a) => `+=`(v, a) }
+  def assignMinus: Parser[E] = variable <~ "-=" ~> arithm ^^ { case (v, a) => `-=`(v, a) }
+  def assignTimes: Parser[E] = variable <~ "*=" ~> arithm ^^ { case (v, a) => `*=`(v, a) }
+  def assignDivide: Parser[E] = variable <~ "/=" ~> arithm ^^ { case (v, a) => `/=`(v, a) }
+  def assignRemainder: Parser[E] = variable <~ "%=" ~> arithm ^^ { case (v, a) => `%=`(v, a) }
+  def assignLogicalNot: Parser[E] = variable <~ "!=" ~> arithm ^^ { case (v, a) => `!=`(v, a) }
+  def assignBitwiseNot: Parser[E] = variable <~ "~=" ~> arithm ^^ { case (v, a) => `~=`(v, a) }
+  def assignBitwiseLeftShift: Parser[E] = variable <~ "<<=" ~> arithm ^^ { case (v, a) => `>>=`(v, a) }
+  def assignBitwiseRightShift: Parser[E] = variable <~ ">>=" ~> arithm ^^ { case (v, a) => `<<=`(v, a) }
+  def assignBitwiseAnd: Parser[E] = variable <~ "&=" ~> arithm ^^ { case (v, a) => `&=`(v, a) }
+  def assignBitwiseXor: Parser[E] = variable <~ "^=" ~> arithm ^^ { case (v, a) => `^=`(v, a) }
+  def assignBitwiseOr: Parser[E] = variable <~ "|=" ~> arithm ^^ { case (v, a) => `|=`(v, a) }
+  def assignLogicalAnd: Parser[E] = variable <~ "&&=" ~> arithm ^^ { case (v, a) => `&&=`(v, a) }
+  def assignLogicalOr: Parser[E] = variable <~ "||=" ~> arithm ^^ { case (v, a) => `||=`(v, a) }
+}
+
 
 sealed trait ExpressionElement extends ProgramElement
 
@@ -206,6 +238,17 @@ object Main extends EvalScriptParser {
   def main(args: Array[String]) {
     //    val v2 = """true false null 10 20 30 10.1 0x1987FA 0x30 1000000000000000000000000000000"""
     val v2 ="10+10*10+20*30 - (10-1)/(1+2)"
+
+    """
+      |val v1 = 1, v2 = 1
+      |
+      |if($purchaseCount <= 10){
+      |   v1 =
+      |   $multiplier = 10
+      |}elsed
+      |
+      |
+    """.stripMargin
 
     //    val v2 = """0x1987FA"""
     //    val v3 = """ 'Test "1"' "Test '2'""""
