@@ -12,53 +12,25 @@ object Interpreter {
     case PlusExpression(l, r) => processExpression(l) + processExpression(r)
     case MinusExpression(l, r) => processExpression(l) - processExpression(r)
     case DivideExpression(l, r) => processExpression(l) / processExpression(r)
-    case MultiplyExpression(l, r) => processExpression(l) * processExpression(r)
+    case MultiplyExpression(l, r) =>processExpression(l) * processExpression(r)
     case RemainderExpression(l, r) => processExpression(l) % processExpression(r)
+    case LogicalNotExpression(r) => !processExpression(r)
+    case BitwiseNotExpression(r) => ~processExpression(r)
+    case UnaryNegationExpression(r) => -processExpression(r)
+    case UnaryPlusExpression(r) => +processExpression(r)
+    //case PrefixIncrementExpression(r) => processExpression(l) + processExpression(r)
+    //case PrefixDecrementExpression(r) => processExpression(l) + processExpression(r)
+    case BitwiseLeftShiftExpression(l, r) => processExpression(l) >> processExpression(r)
+    case BitwiseRightShiftExpression(l, r) => processExpression(l) << processExpression(r)
+    //case PostfixIncrementExpression(l) => processExpression(l) + processExpression(r)
+    //case PostfixDecrementExpression(l) => processExpression(l) + processExpression(r)
+    case BitwiseAndExpression(l, r) => processExpression(l) & processExpression(r)
+    case BitwiseXorExpression(l, r) => processExpression(l) ^ processExpression(r)
+    case BitwiseOrExpression(l, r) => processExpression(l) | processExpression(r)
+    case LogicalAndExpression(l, r) => processExpression(l) && processExpression(r)
+    case LogicalOrExpression(l, r) => processExpression(l) || processExpression(r)
   }
 }
-
-/*case class Val(value: Any) {
-
-  def +(v: Val): Val = (value, v.value) match {
-    case (l: BigDecimal, r: BigDecimal) => Val(l + r)
-    case (l: BigDecimal, r: String) => Val(l + BigDecimal(r))
-    case (l: BigDecimal, r: Boolean) => Val(l + BigDecimal(if (r) 1 else 0))
-    case (l: String, r: String) => Val(l + r)
-    case (l: String, r: BigDecimal) => Val(l + r.toString)
-    case (l: String, r: Boolean) => Val(l + r.toString)
-    case x  => notSupported("+",x)
-  }
-
-  def -(v: Val): Val = (value, v.value) match {
-    case (l: BigDecimal, r: BigDecimal) => Val(l - r)
-    case (l: BigDecimal, r: String) => Val(l - BigDecimal(r))
-    case (l: BigDecimal, r: Boolean) => Val(l - BigDecimal(if (r) 1 else 0))
-    case x  => notSupported("-",x)
-  }
-
-  def *(v: Val): Val = (value, v.value) match {
-    case (l: BigDecimal, r: BigDecimal) => Val(l * r)
-    case (l: BigDecimal, r: String) => Val(l * BigDecimal(r))
-    case (l: BigDecimal, r: Boolean) => Val(l * BigDecimal(if (r) 1 else 0))
-    case x  => notSupported("*",x)
-  }
-
-  def /(v: Val): Val = (value, v.value) match {
-    case (l: BigDecimal, r: BigDecimal) => Val(l * r)
-    case (l: BigDecimal, r: String) => Val(l / BigDecimal(r))
-    case (l: BigDecimal, r: Boolean) => Val(l / BigDecimal(if (r) 1 else 0))
-    case x  => notSupported("/",x)
-  }
-
-  def %(v: Val): Val = (value, v.value) match {
-    case (l: BigDecimal, r: BigDecimal) => Val(l * r)
-    case (l: BigDecimal, r: String) => Val(l % BigDecimal(r))
-    case (l: BigDecimal, r: Boolean) => Val(l % BigDecimal(if (r) 1 else 0))
-    case x  => notSupported("%",x)
-  }
-
-  private def notSupported(o: String, x: (Any, Any)): Val  = throw new UnsupportedOperationException(s"Can't do  ${x._1}:${x._1.getClass.getName} ${o} ${x._2}:${x._2.getClass.getName}")
-} */
 
 class GlobalContext(val vars: mutable.HashMap[String,String] = new mutable.HashMap[String,String]()){
   def apply(v: GlobalVairable): String  = vars.getOrElse(v.name, "")

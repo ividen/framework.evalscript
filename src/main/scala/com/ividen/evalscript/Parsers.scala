@@ -31,6 +31,11 @@ case class BitwiseLeftShiftExpression(l: Expression,r : Expression) extends Expr
 case class BitwiseRightShiftExpression(l: Expression,r : Expression) extends Expression
 case class PostfixIncrementExpression(l: Expression) extends Expression
 case class PostfixDecrementExpression(l: Expression) extends Expression
+case class BitwiseAndExpression(l: Expression, r: Expression) extends Expression
+case class BitwiseXorExpression(l: Expression, r: Expression) extends Expression
+case class BitwiseOrExpression(l: Expression, r: Expression) extends Expression
+case class LogicalAndExpression(l: Expression,r: Expression) extends Expression
+case class LogicalOrExpression(l: Expression, r: Expression) extends Expression
 
 trait ExpressionParser extends RegexParsers  with ArithmExpression{
   def expression =  arithm
@@ -39,7 +44,7 @@ trait ExpressionParser extends RegexParsers  with ArithmExpression{
 trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierParser{
   type E = Expression
 
-  def arithm: Parser[E] = bitwiseGroup
+  def arithm: Parser[E] = logicalOrGroup
 
   def minus: Parser[E => E] = "-" ~> multiplyGroup ^^ { case b => MinusExpression(_, b) }
   def plus: Parser[E => E] = "+" ~> multiplyGroup ^^ { case b => PlusExpression(_, b) }
@@ -58,13 +63,25 @@ trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierPa
   def bitwiseLeftShift: Parser[E => E] = "<<" ~> addGroup ^^ { case b => BitwiseLeftShiftExpression(_, b) }
   def bitwiseRightShift: Parser[E => E] = ">>" ~> addGroup ^^ { case b => BitwiseRightShiftExpression(_, b) }
 
+  def bitwiseAnd: Parser[E => E] = "&" ~> bitwiseShiftGroup ^^ {case b=>BitwiseAndExpression(_,b)}
+  def bitwiseXor: Parser[E => E] = "^" ~> bitwiseAndGroup ^^ {case b=>BitwiseXorExpression(_,b)}
+  def bitwiseOr: Parser[E => E] = "|" ~> bitwiseXorGroup ^^ {case b=>BitwiseOrExpression(_,b)}
+  def logicalAnd: Parser[E => E] = "&&" ~> bitwiseOrGroup ^^ {case b=>LogicalAndExpression(_,b)}
+  def logicalOr: Parser[E => E] = "||" ~> logicalAndGroup ^^ {case b=>LogicalOrExpression(_,b)}
+
+
   private def factor: Parser[E] = scriptLiteral ^^ (LiteralExpression(_)) | "(" ~> arithm <~ ")" | unaryGroup
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
 
+  private def bitwiseAndGroup = operationPrecedence(bitwiseShiftGroup,bitwiseAnd)
+  private def bitwiseXorGroup = operationPrecedence(bitwiseAndGroup,bitwiseXor)
+  private def bitwiseOrGroup = operationPrecedence(bitwiseXorGroup,bitwiseOr)
+  private def logicalAndGroup = operationPrecedence(bitwiseOrGroup,logicalAnd)
+  private def logicalOrGroup = operationPrecedence(logicalAndGroup,logicalOr)
   private def unaryGroup = logicalNot | bitwiseNot | prefixInc | prefixDec | unaryNegate | unaryPlus
   private def multiplyGroup = operationPrecedence(factor,times | divide | remainder)
   private def addGroup = operationPrecedence(multiplyGroup, plus | minus)
-  private def bitwiseGroup = operationPrecedence(addGroup,bitwiseLeftShift | bitwiseRightShift)
+  private def bitwiseShiftGroup = operationPrecedence(addGroup,bitwiseLeftShift | bitwiseRightShift)
   private def operationPrecedence (before: Parser[E], func : Parser[E=>E]) = before ~ rep(func) ^^ foldExpression
 }
 
@@ -96,9 +113,20 @@ sealed trait Literal extends ExpressionElement {
   def %(l: Literal) : Literal = unsupportedOperation
   def <<(l: Literal) : Literal =unsupportedOperation
   def >>(l: Literal) : Literal =unsupportedOperation
+  def unary_! : Literal = unsupportedOperation
+  def unary_~ : Literal = unsupportedOperation
+  def unary_- : Literal = unsupportedOperation
+  def unary_+ : Literal = unsupportedOperation
+  def &(l: Literal) : Literal = unsupportedOperation
+  def ^(l: Literal) : Literal = unsupportedOperation
+  def |(l: Literal) : Literal = unsupportedOperation
+  def &&(l: Literal) : Literal = unsupportedOperation
+  def ||(l: Literal) : Literal = unsupportedOperation
+
   def toBooleanLiteral: BooleanLiteral = unsupportedOperation
   def toStringLiteral : StringLiteral= unsupportedOperation
   def toDecimalLiteral: DecimalLiteral= unsupportedOperation
+
   private def unsupportedOperation[U]: U = throw new UnsupportedOperationException("Operation is not supported!")
 }
 
@@ -109,6 +137,15 @@ object NullLiteral extends Literal{
 }
 case class BooleanLiteral(value: Boolean) extends Literal{
   type T = Boolean
+
+  override def unary_! : Literal = BooleanLiteral(!value)
+  override def unary_~ : Literal = BooleanLiteral(!value)
+  override def &(l: Literal) : Literal = BooleanLiteral(value & l.toBooleanLiteral.value)
+  override def ^(l: Literal) : Literal = BooleanLiteral(value ^ l.toBooleanLiteral.value)
+  override def |(l: Literal) : Literal = BooleanLiteral(value | l.toBooleanLiteral.value)
+  override def &&(l: Literal) : Literal = BooleanLiteral(value && l.toBooleanLiteral.value)
+  override def ||(l: Literal) : Literal = BooleanLiteral(value || l.toBooleanLiteral.value)
+
   override def toBooleanLiteral: BooleanLiteral = this
   override def toStringLiteral: StringLiteral = StringLiteral(value.toString)
   override def toDecimalLiteral: DecimalLiteral = DecimalLiteral(BigDecimal(if(value) 1 else 0))
@@ -124,6 +161,13 @@ case class DecimalLiteral(value: BigDecimal) extends Literal{
   override def %(l: Literal): Literal = DecimalLiteral(this.value % l.toDecimalLiteral.value)
   override def <<(l: Literal): Literal = DecimalLiteral(BigDecimal(this.value.toBigInt() << l.toDecimalLiteral.value.toInt))
   override def >>(l: Literal): Literal = DecimalLiteral(BigDecimal(this.value.toBigInt() >> l.toDecimalLiteral.value.toInt))
+  override def unary_! : Literal = BooleanLiteral(if (value == 0) true else false)
+  override def unary_~ : Literal = DecimalLiteral(BigDecimal(~value.toBigInt()))
+  override def unary_- : Literal = DecimalLiteral(-value)
+  override def unary_+  : Literal = this
+  override def &(l: Literal) : Literal = DecimalLiteral(BigDecimal(value.toBigInt() & l.toDecimalLiteral.value.toBigInt()))
+  override def |(l: Literal) : Literal = DecimalLiteral(BigDecimal(value.toBigInt() | l.toDecimalLiteral.value.toBigInt()))
+  override def ^(l: Literal) : Literal = DecimalLiteral(BigDecimal(value.toBigInt() ^ l.toDecimalLiteral.value.toBigInt()))
   override def toBooleanLiteral: BooleanLiteral = BooleanLiteral(if (value == 0) false else true)
   override def toStringLiteral: StringLiteral = StringLiteral(value.toString)
   override def toDecimalLiteral: DecimalLiteral = this
@@ -161,7 +205,7 @@ object Main extends EvalScriptParser {
 
   def main(args: Array[String]) {
     //    val v2 = """true false null 10 20 30 10.1 0x1987FA 0x30 1000000000000000000000000000000"""
-    val v2 ="10*2+3*20+(4/2)*4 \n 10-9 1*1*1*1*1*1*1*1*2/2 12/'40' '40'*5 '111'+'2222' + true*90"
+    val v2 ="100 - (true && false)"
 
     //    val v2 = """0x1987FA"""
     //    val v3 = """ 'Test "1"' "Test '2'""""
@@ -177,4 +221,5 @@ object Main extends EvalScriptParser {
     //    println(parse(literal, v3))
   }
 }
+
 
