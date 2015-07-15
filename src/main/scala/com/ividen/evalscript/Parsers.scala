@@ -83,7 +83,9 @@ trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierPa
   def logicalAnd: Parser[E => E] = "&&" ~> bitwiseOrGroup ^^ { case b => `&&`(_, b) }
   def logicalOr: Parser[E => E] = "||" ~> logicalAndGroup ^^ { case b => `||`(_, b) }
 
-  private def factor: Parser[E] = scriptLiteral ^^ (LiteralExpression(_)) | "(" ~> arithm <~ ")" | unaryGroup
+  private def factor: Parser[E] = literalExpression | variableExpression  | "(" ~> arithm <~ ")" | unaryGroup
+  private def literalExpression: Parser[E] = scriptLiteral ^^ LiteralExpression
+  private def variableExpression: Parser[E] = variable ^^ VariableExpression
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
 
   private def bitwiseAndGroup = operationPrecedence(bitwiseShiftGroup,bitwiseAnd)
@@ -99,6 +101,13 @@ trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierPa
 }
 
 trait AssignmentParser extends ArithmExpression{
+  def assignments = declareVar | assign | assignPlus |assignMinus |assignTimes |assignDivide |assignRemainder |
+    assignLogicalNot|assignBitwiseNot | assignBitwiseRightShift |
+    assignBitwiseAnd |assignBitwiseXor | assignBitwiseOr | assignLogicalAnd | assignLogicalOr
+
+
+  def declareVar : Parser[List[E]] = "var" ~> rep1sep(variable |assign,",".r)
+
   def assign: Parser[E] = variable <~ "=" ~> arithm ^^ { case (v, a) => `=`(v, a) }
   def assignPlus: Parser[E] = variable <~ "+=" ~> arithm ^^ { case (v, a) => `+=`(v, a) }
   def assignMinus: Parser[E] = variable <~ "-=" ~> arithm ^^ { case (v, a) => `-=`(v, a) }
@@ -115,7 +124,6 @@ trait AssignmentParser extends ArithmExpression{
   def assignLogicalAnd: Parser[E] = variable <~ "&&=" ~> arithm ^^ { case (v, a) => `&&=`(v, a) }
   def assignLogicalOr: Parser[E] = variable <~ "||=" ~> arithm ^^ { case (v, a) => `||=`(v, a) }
 }
-
 
 sealed trait ExpressionElement extends ProgramElement
 
