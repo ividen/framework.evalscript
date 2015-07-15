@@ -14,7 +14,7 @@ trait IfElseParser extends RegexParsers
 trait RepeatParser extends RegexParsers
 
 sealed trait Expression extends ProgramElement
-case class LiteralExpression(literal: Literal[_]) extends Expression
+case class LiteralExpression(literal: Literal) extends Expression
 case class VariableExpression(variable:Variable) extends Expression
 case class PlusExpression(l: Expression,r: Expression) extends Expression
 case class MinusExpression(l: Expression,r: Expression) extends Expression
@@ -23,9 +23,14 @@ case class MultiplyExpression(l: Expression,r: Expression) extends Expression
 case class RemainderExpression(l: Expression,r: Expression) extends Expression
 case class LogicalNotExpression(r: Expression) extends Expression
 case class BitwiseNotExpression(r: Expression) extends Expression
+case class UnaryNegationExpression(r: Expression) extends Expression
+case class UnaryPlusExpression(r: Expression) extends Expression
+case class PrefixIncrementExpression(r: Expression) extends Expression
+case class PrefixDecrementExpression(r: Expression) extends Expression
 case class BitwiseLeftShiftExpression(l: Expression,r : Expression) extends Expression
 case class BitwiseRightShiftExpression(l: Expression,r : Expression) extends Expression
-case class BitwiseUnsignedRightShiftExpression(l: Expression,r : Expression) extends Expression
+case class PostfixIncrementExpression(l: Expression) extends Expression
+case class PostfixDecrementExpression(l: Expression) extends Expression
 
 trait ExpressionParser extends RegexParsers  with ArithmExpression{
   def expression =  arithm
@@ -34,10 +39,10 @@ trait ExpressionParser extends RegexParsers  with ArithmExpression{
 trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierParser{
   type E = Expression
 
-  def arithm: Parser[E] = multPrecedence ~ rep(plus | minus) ^^ foldExpression
+  def arithm: Parser[E] = bitwiseGroup
 
-  def minus: Parser[E => E] = "-" ~> multPrecedence ^^ { case b => MinusExpression(_, b) }
-  def plus: Parser[E => E] = "+" ~> multPrecedence ^^ { case b => PlusExpression(_, b) }
+  def minus: Parser[E => E] = "-" ~> multiplyGroup ^^ { case b => MinusExpression(_, b) }
+  def plus: Parser[E => E] = "+" ~> multiplyGroup ^^ { case b => PlusExpression(_, b) }
 
   def times: Parser[E => E] = "*" ~> factor ^^ { case b => MultiplyExpression(_, b) }
   def divide: Parser[E => E] = "/" ~> factor ^^ { case b => DivideExpression(_, b) }
@@ -45,19 +50,23 @@ trait ArithmExpression extends RegexParsers with LiteralParser with IdentifierPa
 
   def logicalNot: Parser[E] = "!" ~> factor ^^ (LogicalNotExpression(_))
   def bitwiseNot: Parser[E] = "~" ~> factor ^^ (BitwiseNotExpression(_))
+  def prefixInc: Parser[E] = "++" ~> factor ^^ (PrefixIncrementExpression(_))
+  def prefixDec: Parser[E] = "--" ~> factor ^^ (PrefixDecrementExpression(_))
+  def unaryNegate: Parser[E] = "-" ~> factor ^^ (UnaryNegationExpression(_))
+  def unaryPlus: Parser[E] = "+" ~> factor ^^ (UnaryNegationExpression(_))
 
-  def bitwiseLeftShift: Parser[E => E] = "<<" ~> factor ^^ { case b => BitwiseLeftShiftExpression(_, b) }
-  def bitwiseRightShift: Parser[E => E] = ">>" ~> factor ^^ { case b => BitwiseRightShiftExpression(_, b) }
-  def bitwiseUnsignedRightShift: Parser[E => E] = ">>>" ~> factor ^^ { case b => BitwiseUnsignedRightShiftExpression(_, b) }
+  def bitwiseLeftShift: Parser[E => E] = "<<" ~> addGroup ^^ { case b => BitwiseLeftShiftExpression(_, b) }
+  def bitwiseRightShift: Parser[E => E] = ">>" ~> addGroup ^^ { case b => BitwiseRightShiftExpression(_, b) }
 
-  private def bitwiseShiftPrecendence = addPrecendence ~ rep(bitwiseLeftShift | bitwiseRightShift | bitwiseUnsignedRightShift) ^^ foldExpression
-  private def addPrecendence = multPrecedence ~ rep(plus | minus) ^^ foldExpression
-  private def logicalUnaryPrecendence = factor ~ rep(logicalNot | bitwiseNot) ^^ foldExpression
-  private def multPrecedence: Parser[E] = logicalUnaryPrecendence ~ rep(times | divide | remainder) ^^ foldExpression
-  private def factor: Parser[E] = scriptLiteral ^^ (LiteralExpression(_)) | "(" ~> arithm <~ ")"
+  private def factor: Parser[E] = scriptLiteral ^^ (LiteralExpression(_)) | "(" ~> arithm <~ ")" | unaryGroup
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
-}
 
+  private def unaryGroup = logicalNot | bitwiseNot | prefixInc | prefixDec | unaryNegate | unaryPlus
+  private def multiplyGroup = operationPrecedence(factor,times | divide | remainder)
+  private def addGroup = operationPrecedence(multiplyGroup, plus | minus)
+  private def bitwiseGroup = operationPrecedence(addGroup,bitwiseLeftShift | bitwiseRightShift)
+  private def operationPrecedence (before: Parser[E], func : Parser[E=>E]) = before ~ rep(func) ^^ foldExpression
+}
 
 sealed trait ExpressionElement extends ProgramElement
 
@@ -75,16 +84,59 @@ trait IdentifierParser extends RegexParsers{
   def localVariable: Parser[V] = idName ^^ (LocalVariable(_))
 }
 
-sealed trait Literal[T] extends ExpressionElement{
+sealed trait Literal extends ExpressionElement {
+  type T
+
   def value: T
+
+  def +(l: Literal) : Literal = unsupportedOperation
+  def -(l: Literal) : Literal = unsupportedOperation
+  def *(l: Literal) : Literal = unsupportedOperation
+  def /(l: Literal) : Literal = unsupportedOperation
+  def %(l: Literal) : Literal = unsupportedOperation
+  def <<(l: Literal) : Literal =unsupportedOperation
+  def >>(l: Literal) : Literal =unsupportedOperation
+  def toBooleanLiteral: BooleanLiteral = unsupportedOperation
+  def toStringLiteral : StringLiteral= unsupportedOperation
+  def toDecimalLiteral: DecimalLiteral= unsupportedOperation
+  private def unsupportedOperation[U]: U = throw new UnsupportedOperationException("Operation is not supported!")
 }
 
-object NullLiteral extends Literal[Unit]{
+object NullLiteral extends Literal{
+  type T = Unit
+
   override def value: Unit = {}
 }
-case class BooleanLiteral(value: Boolean) extends Literal[Boolean]
-case class DecimalLiteral(value: BigDecimal) extends Literal[BigDecimal]
-case class StringLiteral(value: String) extends Literal[String]
+case class BooleanLiteral(value: Boolean) extends Literal{
+  type T = Boolean
+  override def toBooleanLiteral: BooleanLiteral = this
+  override def toStringLiteral: StringLiteral = StringLiteral(value.toString)
+  override def toDecimalLiteral: DecimalLiteral = DecimalLiteral(BigDecimal(if(value) 1 else 0))
+}
+
+case class DecimalLiteral(value: BigDecimal) extends Literal{
+  type T = BigDecimal
+
+  override def +(l: Literal): Literal = DecimalLiteral(this.value + l.toDecimalLiteral.value)
+  override def -(l: Literal): Literal = DecimalLiteral(this.value - l.toDecimalLiteral.value)
+  override def *(l: Literal): Literal = DecimalLiteral(this.value * l.toDecimalLiteral.value)
+  override def /(l: Literal): Literal = DecimalLiteral(this.value / l.toDecimalLiteral.value)
+  override def %(l: Literal): Literal = DecimalLiteral(this.value % l.toDecimalLiteral.value)
+  override def <<(l: Literal): Literal = DecimalLiteral(BigDecimal(this.value.toBigInt() << l.toDecimalLiteral.value.toInt))
+  override def >>(l: Literal): Literal = DecimalLiteral(BigDecimal(this.value.toBigInt() >> l.toDecimalLiteral.value.toInt))
+  override def toBooleanLiteral: BooleanLiteral = BooleanLiteral(if (value == 0) false else true)
+  override def toStringLiteral: StringLiteral = StringLiteral(value.toString)
+  override def toDecimalLiteral: DecimalLiteral = this
+}
+case class StringLiteral(value: String) extends Literal{
+  type T = String
+
+  override def +(l: Literal): Literal = StringLiteral(this.value + l.toStringLiteral.value)
+  override def *(l: Literal): Literal = StringLiteral((1 to l.toDecimalLiteral.value.toInt).foldLeft[String](this.value)((x1,x2) => x1 + value))
+  override def toBooleanLiteral: BooleanLiteral = BooleanLiteral(if (value == 0) false else true)
+  override def toStringLiteral: StringLiteral = this
+  override def toDecimalLiteral: DecimalLiteral = DecimalLiteral(BigDecimal(value))
+}
 
 trait LiteralParser extends RegexParsers {
   override def skipWhitespace: Boolean = true
@@ -105,17 +157,22 @@ trait LiteralParser extends RegexParsers {
   private def toBooleanLiteral(x: String) = BooleanLiteral(x.toBoolean)
 }
 
-object Main extends ArithmExpression {
+object Main extends EvalScriptParser {
 
   def main(args: Array[String]) {
     //    val v2 = """true false null 10 20 30 10.1 0x1987FA 0x30 1000000000000000000000000000000"""
-    val v2 ="$dsfsdf"
+    val v2 ="10*2+3*20+(4/2)*4 \n 10-9 1*1*1*1*1*1*1*1*2/2 12/'40' '40'*5 '111'+'2222' + true*90"
 
     //    val v2 = """0x1987FA"""
     //    val v3 = """ 'Test "1"' "Test '2'""""
 
+    val all  = parseAll(program, v2)
 
-    println(parseAll(variable, v2))
+    val e1: Expression = null
+    val e2: Expression = null
+
+    println(all)
+    Interpreter.process(all.get)
     //    println(parse(literal, v2))
     //    println(parse(literal, v3))
   }
