@@ -18,10 +18,21 @@ object Interpreter {
       case exp: Expression => processExpression(exp)
       case DeclareVars(l) =>l.foreach(declareVar)
       case assignment: `=` => processAssignment(assignment)
-      case b: `{}` => new BlockExecution(b,globalContext,Some(localContext)).process
+      case `if else`(i,e) => processIfElse(i,e)
+      case b: `{}` => processNewBlock(b)
     }
 
     private def declareVar(e: `=`) = localContext.newVar(e.l, processExpression(e.r))
+    private def processNewBlock(b: `{}`) = new BlockExecution(b, globalContext, Some(localContext)).process
+    private def processIfElse(_if: `if`, _else: Seq[`else`]) = if (checkIf(_if)) processNewBlock(_if.block) else _else.find(checkElse).foreach(x => processNewBlock(x.block))
+    private def checkIf(_if: `if`): Boolean = processCondition(_if.c)
+    private def checkElse(_else: `else`): Boolean = _else.c.fold(true)(c => processCondition(c))
+    private def processCondition(c: Expression): Boolean = processExpression(c) match {
+      case DecimalLiteral(x) if x != 0 => true
+      case StringLiteral(x) if !x.isEmpty => true
+      case BooleanLiteral(x) if x => true
+      case _ => false
+    }
 
     private def processExpression(e: Expression): Literal = e match {
       case LiteralExpression(l: Literal) => l
@@ -90,7 +101,7 @@ object Main2 extends EvalScriptParser {
   def main(args: Array[String]) {
     val s =
       """
-        |var k = 1,l = 100
+        |var k = 1, l = 100
         |$test_1_1 = k
         |{
         |  var k = 2*l
@@ -107,10 +118,17 @@ object Main2 extends EvalScriptParser {
         |
         |$test_1_2 = k
         |
-        |
+        |if( (true && false) || (true || false))
+        |  $result = true
+        |else(true || false)
+        |  $result = false
+        |else
+        |  $somes_else = true
       """.stripMargin
 
-    val i = 1;
+    println(s)
+
+    val i = 1
 
 
     val res = parseAll(script, s).get
