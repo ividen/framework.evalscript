@@ -4,13 +4,25 @@
 </head>
 <body>
 	<script language="javascript">
-	    v1 = 10
-	    v2 = 20
-	    v3 = 30
+       var k = 1
+        $test_1_1 = k
+        {
+            var k = 2
+            $test_2_1 = k
+            {
+               var  k = 3
+                $test_3_1 = k
+            }
+            $test_2_2 = k
+        }
 
-	    
-	    v4 = ++v1
-	    alert(v4)
+        $test_1_2 = k
+
+        alert($test_1_1)
+        alert($test_1_2)
+        alert($test_2_1)
+        alert($test_2_2)
+        alert($test_3_1)
 
 	</script>
 </body>

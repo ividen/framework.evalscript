@@ -5,15 +5,23 @@ import scala.collection.mutable
 
 object Interpreter {
 
-  class ScriptExecution(script: Script,executionContext: ExecutionContext) {
-    def process = script.items.foreach(processElement)
+  class ScriptExecution(script: Script,globalContext: GlobalContext) {
+    def process = new BlockExecution(script.block,globalContext).process
+  }
+  
+  class BlockExecution(block: `{}`, globalContext: GlobalContext, rootLocalContext: Option[LocalContext] = None){
+    val localContext = LocalContext(rootLocalContext)
 
-    private def processElement(e: ScriptElement) = e match {
-      case exp: Expression => println(processExpression(exp))
-      case DeclareVars(l) =>l.foreach(processAssignment)
+    def process = block.items.foreach(processElement)
+
+    private def processElement(e: ScriptElement):Unit = e match {
+      case exp: Expression => processExpression(exp)
+      case DeclareVars(l) =>l.foreach(declareVar)
       case assignment: `=` => processAssignment(assignment)
+      case b: `{}` => new BlockExecution(b,globalContext,Some(localContext)).process
     }
 
+    private def declareVar(e: `=`) = localContext.newVar(e.l, processExpression(e.r))
 
     private def processExpression(e: Expression): Literal = e match {
       case LiteralExpression(l: Literal) => l
@@ -37,21 +45,21 @@ object Interpreter {
       case `|`(l, r) => processExpression(l) | processExpression(r)
       case `&&`(l, r) => processExpression(l) && processExpression(r)
       case `||`(l, r) => processExpression(l) || processExpression(r)
-      case  GerVar(v: LocalVariable) => executionContext.localRoot(v)
-      case  GerVar(v: GlobalVairable) => executionContext.global(v)
+      case  GerVar(v: LocalVariable) => localContext(v)
+      case  GerVar(v: GlobalVairable) => globalContext(v)
     }
 
     private def processAssignment(assignment: `=`) = (assignment.l,assignment.r) match {
-      case (v:LocalVariable,e) => executionContext.localRoot.set(v,processExpression(e))
-      case (g:GlobalVairable,e) => executionContext.global.set(g,processExpression(e))
+      case (v:LocalVariable,e) => localContext.set(v,processExpression(e))
+      case (g:GlobalVairable,e) => globalContext.set(g,processExpression(e))
     }
+    
   }
 
-  def process(script: Script, executionContext: ExecutionContext) = new ScriptExecution(script,executionContext).process
-
+  def process(script: Script, globalContext: GlobalContext) = new ScriptExecution(script,globalContext).process
 }
 
-class GlobalContext(initVars: Map[String,_]){
+class GlobalContext(initVars: Map[String,_] = Map.empty){
   var vars = mutable.Map[String,Literal]() ++ initVars.map(e => e._1 -> valToLiteral(e._2))
   def apply(v: GlobalVairable): Literal  = vars.getOrElse(v.name, NullLiteral)
   def set(v: GlobalVairable, value : Literal) = vars.put(v.name, value)
@@ -74,27 +82,42 @@ case class LocalContext(parent: Option[LocalContext] = None){
   
   def apply(v: LocalVariable): Literal  = vars.getOrElse(v.name, parent.fold[Literal](NullLiteral)(c => c.apply(v)))
   def set(v: LocalVariable, value : Literal) = findContext(v).fold(this)(x =>x).vars.put(v.name , value)
-  def newVar(v: LocalVariable,value: Literal) = vars.put(v.name , value)
+  def newVar(v: Variable,value: Literal) =vars.put(v.name , value)
   protected def findContext(v:LocalVariable): Option[LocalContext] = if(vars.contains(v.name)) Some(this) else parent.fold[Option[LocalContext]](None)(c => c.findContext(v))
-}
-
-case class ExecutionContext(globals: Map[String,_] = Map.empty){
-  val global = new  GlobalContext(globals)
-  val localRoot = LocalContext()
 }
 
 object Main2 extends EvalScriptParser {
   def main(args: Array[String]) {
-    val s = "var k=1,l=1,m \n $multiplier = k++ $test=k"
+    val s =
+      """
+        |var k = 1,l = 100
+        |$test_1_1 = k
+        |{
+        |  var k = 2*l
+        |  $test_2_1 = k
+        |  {
+        |    var k=3*l
+        |    $test_3_1 = k++
+        |    {
+        |       $test_4 = k+100
+        |    }
+        |  }
+        |  $test_2_2 = k
+        |}
+        |
+        |$test_1_2 = k
+        |
+        |
+      """.stripMargin
 
     val i = 1;
 
 
     val res = parseAll(script, s).get
     println(res)
-    val context = ExecutionContext()
+    val context= new GlobalContext()
     Interpreter.process(res,context)
-    println(context.global.vars)
+    println(context.vars)
 
 
 

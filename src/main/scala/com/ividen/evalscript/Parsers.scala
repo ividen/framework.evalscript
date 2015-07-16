@@ -5,17 +5,17 @@ import org.apache.commons.lang3.StringEscapeUtils
 import scala.util.parsing.combinator._
 
 sealed trait ScriptElement
-case class Script(items: Seq[ScriptElement])
+case class Script(block: `{}`)
 
-trait EvalScriptParser extends ControlFlowParser with ExpressionParser with ArithmParser with LiteralParser with IdentifierParser with AssignmentParser{
-  def script : Parser[Script] = rep(expression) ^^ (Script(_))
+trait EvalScriptParser extends ControlFlowParser with StatementParser with ArithmParser with LiteralParser with IdentifierParser with AssignmentParser{
+  def script : Parser[Script] = statemetList ^^ (Script(_))
 }
 trait ControlFlowParser extends IfElseParser with RepeatParser
 trait IfElseParser extends RegexParsers
 trait RepeatParser extends RegexParsers
 
+case class `{}`(items: Seq[ScriptElement]) extends ScriptElement
 case class DeclareVars(items: Seq[`=`]) extends ScriptElement
-
 case class `=`(l:Variable,r: Expression) extends ScriptElement
 
 sealed trait Expression extends ScriptElement
@@ -46,8 +46,11 @@ case class `|`(l: Expression, r: Expression) extends Expression
 case class `&&`(l: Expression,r: Expression) extends Expression
 case class `||`(l: Expression, r: Expression) extends Expression
 
-trait ExpressionParser extends RegexParsers { self: ArithmParser with AssignmentParser =>
-  def expression =  assignments | arithm
+trait StatementParser extends RegexParsers { self: ArithmParser with AssignmentParser =>
+  def statemetList = statements ^^ (`{}`(_))
+  def statement =  assignments | arithm | block
+  def statements =  statement*
+  def block: Parser[ScriptElement]= ("{" ~> statements )<~"}" ^^ (`{}`(_))
 }
 
 trait ArithmParser extends RegexParsers {self: LiteralParser with IdentifierParser =>
@@ -269,8 +272,7 @@ object Main extends EvalScriptParser {
     val e2: Expression = null
 
     println(all)
-    val ctx = ExecutionContext()
-    Interpreter.process(all.get,ctx)
+    Interpreter.process(all.get,new GlobalContext())
     //    println(parse(literal, v2))
     //    println(parse(literal, v3))
   }
