@@ -1,17 +1,26 @@
 package com.ividen.evalscript
 
-import com.ividen.evalscript.DeclareVars
 import org.apache.commons.lang3.StringEscapeUtils
 import scala.util.parsing.combinator._
 
 sealed trait ScriptElement
 case class Script(block: `{}`)
 
-trait EvalScriptParser extends ControlFlowParser with StatementParser with ArithmParser with LiteralParser with IdentifierParser with AssignmentParser{
+trait EvalScriptParser extends IfElseParser with RepeatParser with StatementParser with ArithmParser with LiteralParser with IdentifierParser with AssignmentParser{
   def script : Parser[Script] = statemetList ^^ (Script(_))
 }
-trait ControlFlowParser extends IfElseParser with RepeatParser
-trait IfElseParser extends RegexParsers
+
+case class `if`(c : Expression, block: `{}`)
+case class `else`(c: Option[Expression],block:`{}`)
+case class `if else`(i: `if`, e: Seq[`else`])extends ScriptElement
+
+trait IfElseParser extends RegexParsers{ self: StatementParser with ArithmParser =>
+  def if_else: Parser[ScriptElement] = if_ ~ rep(_else) ^^ { case i ~ e => `if else`(i, e) }
+  def if_ = "if" ~> (condition ~ statement) ^^ { case c ~ s => `if`(c, `{}`(Seq(s))) }
+  def _else = ("else" ~> (condition.? ~ statement)) ^^ { case c ~ s => `else`(c, `{}`(Seq(s))) }
+  def condition: Parser[Expression] = "(" ~> arithm <~ ")"
+}
+
 trait RepeatParser extends RegexParsers
 
 case class `{}`(items: Seq[ScriptElement]) extends ScriptElement
@@ -21,7 +30,6 @@ case class `=`(l:Variable,r: Expression) extends ScriptElement
 sealed trait Expression extends ScriptElement
 case class LiteralExpression(literal: Literal) extends Expression
 case class GerVar(variable:Variable) extends Expression
-
 
 case class `:+`(l: Expression,r: Expression) extends Expression
 case class `:-`(l: Expression,r: Expression) extends Expression
@@ -46,9 +54,9 @@ case class `|`(l: Expression, r: Expression) extends Expression
 case class `&&`(l: Expression,r: Expression) extends Expression
 case class `||`(l: Expression, r: Expression) extends Expression
 
-trait StatementParser extends RegexParsers { self: ArithmParser with AssignmentParser =>
+trait StatementParser extends RegexParsers { self: ArithmParser with AssignmentParser with IfElseParser =>
   def statemetList = statements ^^ (`{}`(_))
-  def statement =  assignments | arithm | block
+  def statement: Parser[ScriptElement] =  assignments | arithm | block | if_else
   def statements =  statement*
   def block: Parser[ScriptElement]= ("{" ~> statements )<~"}" ^^ (`{}`(_))
 }
