@@ -9,7 +9,8 @@ object Interpreter {
 
     private def processElement(e: ScriptElement) = e match {
       case exp: Expression => println(processExpression(exp))
-      case _ => throw new RuntimeException()
+      case DeclareVars(l) => l.foreach(processAssignment)
+      case assignment: `=` => processAssignment(assignment)
     }
 
     private def processExpression(e: Expression): Literal = e match {
@@ -36,8 +37,6 @@ object Interpreter {
       case `||`(l, r) => processExpression(l) || processExpression(r)
       case  GerVar(v: LocalVariable) => executionContext.localRoot(v)
       case  GerVar(v: GlobalVairable) => executionContext.global(v)
-      case DeclareVars(l) => l.foreach(processAssignment); NullLiteral //todo aguzanov ProgramElement?
-      case assignment: `=` => processAssignment(assignment); NullLiteral  //todo aguzanov ProgramElement?
     }
 
     private def processAssignment(assignment: `=`) = (assignment.l,assignment.r) match {
@@ -84,7 +83,7 @@ case class ExecutionContext(globals: Map[String,_] = Map.empty){
 
 object Main2 extends EvalScriptParser {
   def main(args: Array[String]) {
-    val s = "var k=1,l,m=0.8 \n $multiplier=10*k*m"
+    val s = "var k=1,l,m=0.8  $multiplier=10*k*m"
 
 
     val res = parseAll(script, s).get

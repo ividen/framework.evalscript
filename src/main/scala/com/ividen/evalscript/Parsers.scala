@@ -14,10 +14,14 @@ trait ControlFlowParser extends IfElseParser with RepeatParser
 trait IfElseParser extends RegexParsers
 trait RepeatParser extends RegexParsers
 
+case class DeclareVars(items: Seq[`=`]) extends ScriptElement
+
+case class `=`(l:Variable,r: Expression) extends ScriptElement
+
 sealed trait Expression extends ScriptElement
 case class LiteralExpression(literal: Literal) extends Expression
 case class GerVar(variable:Variable) extends Expression
-case class DeclareVars(items: Seq[`=`]) extends Expression
+
 
 case class `:+`(l: Expression,r: Expression) extends Expression
 case class `:-`(l: Expression,r: Expression) extends Expression
@@ -39,7 +43,6 @@ case class `^`(l: Expression, r: Expression) extends Expression
 case class `|`(l: Expression, r: Expression) extends Expression
 case class `&&`(l: Expression,r: Expression) extends Expression
 case class `||`(l: Expression, r: Expression) extends Expression
-case class `=`(l:Variable,r: Expression) extends Expression
 
 trait ExpressionParser extends RegexParsers  with ArithmParser with AssignmentParser{
   def expression =  assignments | arithm
@@ -97,7 +100,7 @@ trait AssignmentParser extends ArithmParser{
     assignLogicalNot|assignBitwiseNot | assignBitwiseRightShift |
     assignBitwiseAnd |assignBitwiseXor | assignBitwiseOr | assignLogicalAnd | assignLogicalOr
 
-  def declareVars : Parser[E] = "var" ~> repsep(newVar,",".r) ^^ (DeclareVars(_))
+  def declareVars : Parser[DeclareVars] = "var" ~> repsep(newVar,",".r) ^^ (DeclareVars(_))
   def assign: Parser[`=`] = variable ~ "=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, a) }
   def assignPlus: Parser[`=`] = variable ~ "+=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `:+`(v, a)) }
   def assignMinus: Parser[`=`] = variable ~ "-=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `:-`(v, a)) }
