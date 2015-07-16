@@ -56,7 +56,13 @@ object Interpreter {
       case `|`(l, r) => processExpression(l) | processExpression(r)
       case `&&`(l, r) => processExpression(l) && processExpression(r)
       case `||`(l, r) => processExpression(l) || processExpression(r)
-      case  GerVar(v: LocalVariable) => localContext(v)
+      case `:==`(l, r) => processExpression(l) == processExpression(r)
+      case `:!=`(l, r) => processExpression(l) != processExpression(r)
+      case `<`(l, r) => processExpression(l) < processExpression(r)
+      case `>`(l, r) => processExpression(l) > processExpression(r)
+      case `>=`(l, r) => processExpression(l) >= processExpression(r)
+      case `<=`(l, r) => processExpression(l) <= processExpression(r)
+      case GerVar(v: LocalVariable) => localContext(v)
       case  GerVar(v: GlobalVairable) => globalContext(v)
     }
 
@@ -124,6 +130,27 @@ object Main2 extends EvalScriptParser {
         |  $result = false
         |else
         |  $somes_else = true
+        |
+        |$resultString  = "\n"
+        |if($test_1_1 < 100){
+        |   $resultString += "$test_1_1 is equal " + $test_1_1 + "\n"
+        |}
+        |
+        |if($test_1_2 < 100){
+        |   $resultString += "$test_1_2 is equal " + $test_1_2 + "\n"
+        |}
+        |
+        |if($test_2_1 < 100){
+        |   $resultString += "$test_2_1 is equal " + $test_2_1 + "\n"
+        |}
+        |
+        |if($test_2_2 < 100){
+        |   $resultString += "$test_2_2 is equal " + $test_2_2 + "\n"
+        |}
+        |
+        |if((10+10*20 - 90) > 8) $resultString += " && > then 8"
+        |
+        |
       """.stripMargin
 
     println(s)

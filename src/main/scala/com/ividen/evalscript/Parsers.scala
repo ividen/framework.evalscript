@@ -54,13 +54,24 @@ trait ArithmParser extends RegexParsers {self: LiteralParser with IdentifierPars
   def logicalAnd: Parser[E => E] = "&&" ~> bitwiseOrGroup ^^ { case b => `&&`(_, b) }
   def logicalOr: Parser[E => E] = "||" ~> logicalAndGroup ^^ { case b => `||`(_, b) }
 
+
+  def isEq: Parser[E => E] = "==" ~> arithm ^^ { case b => `:==`(_, b) }
+  def isNotEq: Parser[E => E] = "!=" ~> arithm ^^ { case b => `:!=`(_, b) }
+  def lessThen: Parser[E => E] = "<" ~> arithm ^^ { case b => `<`(_, b) }
+  def lessThenOrEq: Parser[E => E] = "<=" ~> arithm ^^ { case b => `<=`(_, b) }
+  def greaterThen: Parser[E => E] = ">" ~> arithm ^^ { case b => `>`(_, b) }
+  def greaterThenOrEq: Parser[E => E] = ">=" ~> arithm ^^ { case b => `>`(_, b) }
+
+
   private def factor: Parser[E] = literalExpression | postfixGroup | variableExpression  | "(" ~> arithm <~ ")"  | unaryGroup
   private def literalExpression: Parser[E] = scriptLiteral ^^ LiteralExpression
   private def variableExpression: Parser[E] = variable ^^ GerVar
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
 
+  private def nonStrictConditionGroup = operationPrecedence(bitwiseShiftGroup,lessThen | lessThenOrEq | greaterThen | greaterThenOrEq)
+  private def strictConditionGroup = operationPrecedence(nonStrictConditionGroup,lessThen | lessThenOrEq | greaterThen | greaterThenOrEq)
   private def postfixGroup = postfixInc | postfixDec
-  private def bitwiseAndGroup = operationPrecedence(bitwiseShiftGroup,bitwiseAnd)
+  private def bitwiseAndGroup = operationPrecedence(strictConditionGroup,bitwiseAnd)
   private def bitwiseXorGroup = operationPrecedence(bitwiseAndGroup,bitwiseXor)
   private def bitwiseOrGroup = operationPrecedence(bitwiseXorGroup,bitwiseOr)
   private def logicalAndGroup = operationPrecedence(bitwiseOrGroup,logicalAnd)
@@ -138,6 +149,8 @@ object Main extends EvalScriptParser {
       |if($purchaseCount <= 10){
       |   v1 =
       |   $multiplier = 10
+      |
+      |
       |}elsed
       |
       |

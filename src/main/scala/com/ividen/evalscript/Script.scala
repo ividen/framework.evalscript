@@ -33,6 +33,12 @@ case class `^`(l: Expression, r: Expression) extends Expression
 case class `|`(l: Expression, r: Expression) extends Expression
 case class `&&`(l: Expression,r: Expression) extends Expression
 case class `||`(l: Expression, r: Expression) extends Expression
+case class `:==`(l: Expression, r: Expression) extends Expression
+case class `:!=`(l: Expression, r: Expression) extends Expression
+case class `<`(l: Expression, r: Expression) extends Expression
+case class `>`(l: Expression, r: Expression) extends Expression
+case class `>=`(l: Expression, r: Expression) extends Expression
+case class `<=`(l: Expression, r: Expression) extends Expression
 
 
 case class `if`(c : Expression, block: `{}`)
@@ -68,6 +74,12 @@ sealed trait Literal extends ExpressionElement {
   def |(l: Literal) : Literal = unsupportedOperation
   def &&(l: Literal) : Literal = unsupportedOperation
   def ||(l: Literal) : Literal = unsupportedOperation
+  def ==(l: Literal) : Literal = unsupportedOperation
+  def !=(l: Literal) : Literal = unsupportedOperation
+  def <(l: Literal) : Literal = unsupportedOperation
+  def >(l: Literal) : Literal = unsupportedOperation
+  def >=(l: Literal) : Literal = unsupportedOperation
+  def <=(l: Literal) : Literal = unsupportedOperation
 
   def toBooleanLiteral: BooleanLiteral = unsupportedOperation
   def toStringLiteral : StringLiteral= unsupportedOperation
@@ -91,6 +103,12 @@ case class BooleanLiteral(value: Boolean) extends Literal{
   override def |(l: Literal) : Literal = BooleanLiteral(value | l.toBooleanLiteral.value)
   override def &&(l: Literal) : Literal = BooleanLiteral(value && l.toBooleanLiteral.value)
   override def ||(l: Literal) : Literal = BooleanLiteral(value || l.toBooleanLiteral.value)
+  override def ==(l: Literal) : Literal = BooleanLiteral(value == l.toBooleanLiteral.value)
+  override def !=(l: Literal) : Literal = BooleanLiteral(value != l.toBooleanLiteral.value)
+  override def <(l: Literal) : Literal = BooleanLiteral(value < l.toBooleanLiteral.value)
+  override def >(l: Literal) : Literal = BooleanLiteral(value > l.toBooleanLiteral.value)
+  override def >=(l: Literal) : Literal = BooleanLiteral(value >= l.toBooleanLiteral.value)
+  override def <=(l: Literal) : Literal = BooleanLiteral(value <= l.toBooleanLiteral.value)
 
   override def toBooleanLiteral: BooleanLiteral = this
   override def toStringLiteral: StringLiteral = StringLiteral(value.toString)
@@ -114,6 +132,12 @@ case class DecimalLiteral(value: BigDecimal) extends Literal{
   override def &(l: Literal) : Literal = DecimalLiteral(BigDecimal(value.toBigInt() & l.toDecimalLiteral.value.toBigInt()))
   override def |(l: Literal) : Literal = DecimalLiteral(BigDecimal(value.toBigInt() | l.toDecimalLiteral.value.toBigInt()))
   override def ^(l: Literal) : Literal = DecimalLiteral(BigDecimal(value.toBigInt() ^ l.toDecimalLiteral.value.toBigInt()))
+  override def ==(l: Literal) : Literal = BooleanLiteral(value == l.toBooleanLiteral.value)
+  override def !=(l: Literal) : Literal = BooleanLiteral(value != l.toBooleanLiteral.value)
+  override def <(l: Literal) : Literal = BooleanLiteral(value < l.toDecimalLiteral.value)
+  override def >(l: Literal) : Literal = BooleanLiteral(value > l.toDecimalLiteral.value)
+  override def >=(l: Literal) : Literal = BooleanLiteral(value >= l.toDecimalLiteral.value)
+  override def <=(l: Literal) : Literal = BooleanLiteral(value <= l.toDecimalLiteral.value)
   override def toBooleanLiteral: BooleanLiteral = BooleanLiteral(if (value == 0) false else true)
   override def toStringLiteral: StringLiteral = StringLiteral(value.toString)
   override def toDecimalLiteral: DecimalLiteral = this
@@ -123,6 +147,12 @@ case class StringLiteral(value: String) extends Literal{
 
   override def +(l: Literal): Literal = StringLiteral(this.value + l.toStringLiteral.value)
   override def *(l: Literal): Literal = StringLiteral((1 to l.toDecimalLiteral.value.toInt).foldLeft[String](this.value)((x1,x2) => x1 + value))
+  override def ==(l: Literal) : Literal = BooleanLiteral(value == l.toStringLiteral.value)
+  override def !=(l: Literal) : Literal = BooleanLiteral(value != l.toBooleanLiteral.value)
+  override def <(l: Literal) : Literal = BooleanLiteral(value < l.toStringLiteral.value)
+  override def >(l: Literal) : Literal = BooleanLiteral(value > l.toStringLiteral.value)
+  override def >=(l: Literal) : Literal = BooleanLiteral(value >= l.toStringLiteral.value)
+  override def <=(l: Literal) : Literal = BooleanLiteral(value <= l.toStringLiteral.value)
   override def toBooleanLiteral: BooleanLiteral = BooleanLiteral(if (value == 0) false else true)
   override def toStringLiteral: StringLiteral = this
   override def toDecimalLiteral: DecimalLiteral = DecimalLiteral(BigDecimal(value))
