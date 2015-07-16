@@ -36,6 +36,7 @@ object Interpreter {
       case `||`(l, r) => processExpression(l) || processExpression(r)
       case  GerVar(v: LocalVariable) => executionContext.localRoot(v)
       case  GerVar(v: GlobalVairable) => executionContext.global(v)
+      case DeclareVars(l) => l.foreach(processAssignment); NullLiteral //todo aguzanov ProgramElement?
       case assignment: `=` => processAssignment(assignment); NullLiteral  //todo aguzanov ProgramElement?
     }
 
@@ -83,22 +84,13 @@ case class ExecutionContext(globals: Map[String,_] = Map.empty){
 
 object Main2 extends EvalScriptParser {
   def main(args: Array[String]) {
-    val s = """ 'Test "1"' + " and " +"Test '2'" + (10 *10)  """
+    val s = "var k=1,l,m=0.8 \n $multiplier=10*k*m"
 
-    val sc =
-      """
-        |if($purchases<100)  multiplier = 2
-        |else($purchase<200) multiplier = 3
-        |else($purchase<300) multiplier = 4
-        |else multiplier = 100
-        |
-        |$amount *= multiplier
-        |
-      """.stripMargin
 
     val res = parseAll(script, s).get
     println(res)
     val context = ExecutionContext()
     Interpreter.process(res,context)
+    println(context.global.vars)
   }
 }

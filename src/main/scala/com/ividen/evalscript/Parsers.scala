@@ -42,7 +42,7 @@ case class `||`(l: Expression, r: Expression) extends Expression
 case class `=`(l:Variable,r: Expression) extends Expression
 
 trait ExpressionParser extends RegexParsers  with ArithmParser with AssignmentParser{
-  def expression =  arithm | assignments
+  def expression =  assignments | arithm
 }
 
 trait ArithmParser extends RegexParsers with LiteralParser with IdentifierParser{
@@ -97,7 +97,7 @@ trait AssignmentParser extends ArithmParser{
     assignLogicalNot|assignBitwiseNot | assignBitwiseRightShift |
     assignBitwiseAnd |assignBitwiseXor | assignBitwiseOr | assignLogicalAnd | assignLogicalOr
 
-  def declareVars : Parser[E] = "var" ~> rep1sep(newVar,",".r) ^^ (DeclareVars(_))
+  def declareVars : Parser[E] = "var" ~> repsep(newVar,",".r) ^^ (DeclareVars(_))
   def assign: Parser[`=`] = variable ~ "=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, a) }
   def assignPlus: Parser[`=`] = variable ~ "+=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `:+`(v, a)) }
   def assignMinus: Parser[`=`] = variable ~ "-=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `:-`(v, a)) }
@@ -113,7 +113,9 @@ trait AssignmentParser extends ArithmParser{
   def assignBitwiseOr: Parser[`=`] = variable ~ "|=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `|`(v, a)) }
   def assignLogicalAnd: Parser[`=`] = variable ~ "&&=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `&&`(v, a)) }
   def assignLogicalOr: Parser[`=`] = variable ~ "||=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `||`(v, a)) }
-  private def newVar: Parser[`=`] = variable ^^ { case v => `=`(v, LiteralExpression(NullLiteral)) } | assign
+  private def newVar: Parser[`=`] = assign | nullVar
+  private def nullVar: Parser[`=`] = variable ^^ { case v => `=`(v, LiteralExpression(NullLiteral)) }
+
 }
 
 sealed trait ExpressionElement extends ScriptElement
