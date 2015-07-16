@@ -4,10 +4,10 @@ import scala.collection.mutable
 
 object Interpreter {
 
-  class ScriptExecution(elements: List[ProgramElement],executionContext: ExecutionContext) {
-    def process = elements.foreach(processElement)
+  class ScriptExecution(script: Script,executionContext: ExecutionContext) {
+    def process = script.items.foreach(processElement)
 
-    private def processElement(e: ProgramElement) = e match {
+    private def processElement(e: ScriptElement) = e match {
       case exp: Expression => println(processExpression(exp))
       case _ => throw new RuntimeException()
     }
@@ -34,6 +34,8 @@ object Interpreter {
       case `|`(l, r) => processExpression(l) | processExpression(r)
       case `&&`(l, r) => processExpression(l) && processExpression(r)
       case `||`(l, r) => processExpression(l) || processExpression(r)
+      case  GerVar(v: LocalVariable) => executionContext.localRoot(v)
+      case  GerVar(v: GlobalVairable) => executionContext.global(v)
       case assignment: `=` => processAssignment(assignment); NullLiteral  //todo aguzanov ProgramElement?
     }
 
@@ -43,7 +45,7 @@ object Interpreter {
     }
   }
 
-  def process(elements: List[ProgramElement], executionContext: ExecutionContext) = new ScriptExecution(elements,executionContext).process
+  def process(script: Script, executionContext: ExecutionContext) = new ScriptExecution(script,executionContext).process
 
 }
 
@@ -83,7 +85,7 @@ object Main2 extends EvalScriptParser {
   def main(args: Array[String]) {
     val s = """ 'Test "1"' + " and " +"Test '2'" + (10 *10)  """
 
-    val script =
+    val sc =
       """
         |if($purchases<100)  multiplier = 2
         |else($purchase<200) multiplier = 3
@@ -94,7 +96,7 @@ object Main2 extends EvalScriptParser {
         |
       """.stripMargin
 
-    val res = parseAll(program, s).get
+    val res = parseAll(script, s).get
     println(res)
     val context = ExecutionContext()
     Interpreter.process(res,context)

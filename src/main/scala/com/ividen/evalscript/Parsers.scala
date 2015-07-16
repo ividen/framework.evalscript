@@ -3,19 +3,20 @@ package com.ividen.evalscript
 import com.ividen.evalscript.DeclareVars
 import org.apache.commons.lang3.StringEscapeUtils
 import scala.util.parsing.combinator._
-trait ProgramElement
+
+trait ScriptElement
+case class Script(items: Seq[ScriptElement])
 
 trait EvalScriptParser extends ControlFlowParser with ExpressionParser{
-  type PE = ProgramElement
-  def program : Parser[List[PE]] = rep(expression)
+  def script : Parser[Script] = rep(expression) ^^ (Script(_))
 }
 trait ControlFlowParser extends IfElseParser with RepeatParser
 trait IfElseParser extends RegexParsers
 trait RepeatParser extends RegexParsers
 
-sealed trait Expression extends ProgramElement
+sealed trait Expression extends ScriptElement
 case class LiteralExpression(literal: Literal) extends Expression
-case class VariableExpression(variable:Variable) extends Expression
+case class GerVar(variable:Variable) extends Expression
 case class DeclareVars(items: Seq[`=`]) extends Expression
 
 case class `:+`(l: Expression,r: Expression) extends Expression
@@ -39,8 +40,6 @@ case class `|`(l: Expression, r: Expression) extends Expression
 case class `&&`(l: Expression,r: Expression) extends Expression
 case class `||`(l: Expression, r: Expression) extends Expression
 case class `=`(l:Variable,r: Expression) extends Expression
-
-
 
 trait ExpressionParser extends RegexParsers  with ArithmParser with AssignmentParser{
   def expression =  arithm | assignments
@@ -76,7 +75,7 @@ trait ArithmParser extends RegexParsers with LiteralParser with IdentifierParser
 
   private def factor: Parser[E] = literalExpression | variableExpression  | "(" ~> arithm <~ ")" | unaryGroup
   private def literalExpression: Parser[E] = scriptLiteral ^^ LiteralExpression
-  private def variableExpression: Parser[E] = variable ^^ VariableExpression
+  private def variableExpression: Parser[E] = variable ^^ GerVar
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
 
   private def bitwiseAndGroup = operationPrecedence(bitwiseShiftGroup,bitwiseAnd)
@@ -92,6 +91,8 @@ trait ArithmParser extends RegexParsers with LiteralParser with IdentifierParser
 }
 
 trait AssignmentParser extends ArithmParser{
+  implicit def variableToExpression(v: Variable):Expression = GerVar(v)
+
   def assignments = declareVars | assign | assignPlus |assignMinus |assignTimes |assignDivide |assignRemainder |
     assignLogicalNot|assignBitwiseNot | assignBitwiseRightShift |
     assignBitwiseAnd |assignBitwiseXor | assignBitwiseOr | assignLogicalAnd | assignLogicalOr
@@ -105,8 +106,8 @@ trait AssignmentParser extends ArithmParser{
   def assignRemainder: Parser[`=`] = variable ~ "%=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `%`(v, a)) }
   def assignLogicalNot: Parser[`=`] = variable ~ "!=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `!:`(a)) }
   def assignBitwiseNot: Parser[`=`] = variable ~ "~=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `~:`(a)) }
-  def assignBitwiseLeftShift: Parser[`=`] = variable ~ "<<=" ~> arithm ^^ { case v ~ _ ~ a => `=`(v, `>>`(v, a)) }
-  def assignBitwiseRightShift: Parser[`=`] = variable ~ ">>=" ~> arithm ^^ { case v ~ _ ~ a => `=`(v, `<<`(v, a)) }
+  def assignBitwiseLeftShift: Parser[`=`] = variable ~ "<<=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `>>`(v, a)) }
+  def assignBitwiseRightShift: Parser[`=`] = variable ~ ">>=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `<<`(v, a)) }
   def assignBitwiseAnd: Parser[`=`] = variable ~ "&=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `&`(v, a)) }
   def assignBitwiseXor: Parser[`=`] = variable ~ "^=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `^`(v, a)) }
   def assignBitwiseOr: Parser[`=`] = variable ~ "|=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `|`(v, a)) }
@@ -115,7 +116,7 @@ trait AssignmentParser extends ArithmParser{
   private def newVar: Parser[`=`] = variable ^^ { case v => `=`(v, LiteralExpression(NullLiteral)) } | assign
 }
 
-sealed trait ExpressionElement extends ProgramElement
+sealed trait ExpressionElement extends ScriptElement
 
 sealed trait Variable extends ExpressionElement{
   def name : String
@@ -251,7 +252,7 @@ object Main extends EvalScriptParser {
     //    val v2 = """0x1987FA"""
     //    val v3 = """ 'Test "1"' "Test '2'""""
 
-    val all  = parseAll(program, v2)
+    val all  = parseAll(script, v2)
 
     val e1: Expression = null
     val e2: Expression = null
