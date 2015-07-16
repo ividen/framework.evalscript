@@ -4,10 +4,10 @@ import com.ividen.evalscript.DeclareVars
 import org.apache.commons.lang3.StringEscapeUtils
 import scala.util.parsing.combinator._
 
-trait ScriptElement
+sealed trait ScriptElement
 case class Script(items: Seq[ScriptElement])
 
-trait EvalScriptParser extends ControlFlowParser with ExpressionParser{
+trait EvalScriptParser extends ControlFlowParser with ExpressionParser with ArithmParser with LiteralParser with IdentifierParser with AssignmentParser{
   def script : Parser[Script] = rep(expression) ^^ (Script(_))
 }
 trait ControlFlowParser extends IfElseParser with RepeatParser
@@ -32,8 +32,10 @@ case class `!:`(r: Expression) extends Expression
 case class `~:`(r: Expression) extends Expression
 case class `-:`(r: Expression) extends Expression
 case class `+:`(r: Expression) extends Expression
-case class `++:`(r: Expression) extends Expression
-case class `--:`(r: Expression) extends Expression
+case class `++:`(r: Variable) extends Expression
+case class `:++`(r: Variable) extends Expression
+case class `--:`(r: Variable) extends Expression
+case class `:--`(r: Variable) extends Expression
 case class `<<`(l: Expression,r : Expression) extends Expression
 case class `>>`(l: Expression,r : Expression) extends Expression
 case class `++`(l: Expression) extends Expression
@@ -44,11 +46,11 @@ case class `|`(l: Expression, r: Expression) extends Expression
 case class `&&`(l: Expression,r: Expression) extends Expression
 case class `||`(l: Expression, r: Expression) extends Expression
 
-trait ExpressionParser extends RegexParsers  with ArithmParser with AssignmentParser{
+trait ExpressionParser extends RegexParsers { self: ArithmParser with AssignmentParser =>
   def expression =  assignments | arithm
 }
 
-trait ArithmParser extends RegexParsers with LiteralParser with IdentifierParser{
+trait ArithmParser extends RegexParsers {self: LiteralParser with IdentifierParser =>
   type E = Expression
 
   def arithm: Parser[E] = logicalOrGroup
@@ -62,8 +64,8 @@ trait ArithmParser extends RegexParsers with LiteralParser with IdentifierParser
 
   def logicalNot: Parser[E] = "!" ~> factor ^^ `!:`
   def bitwiseNot: Parser[E] = "~" ~> factor ^^ `~:`
-  def prefixInc: Parser[E] = "++" ~> factor ^^ `++:`
-  def prefixDec: Parser[E] = "--" ~> factor ^^ `--:`
+  def prefixInc: Parser[E] = "++" ~> variable ^^ `++:`
+  def prefixDec: Parser[E] = "--" ~> variable ^^ `--:`
   def unaryNegate: Parser[E] = "-" ~> factor ^^ `-:`
   def unaryPlus: Parser[E] = "+" ~> factor ^^ `+:`
 
@@ -93,7 +95,7 @@ trait ArithmParser extends RegexParsers with LiteralParser with IdentifierParser
   private def operationPrecedence (before: Parser[E], func : Parser[E=>E]) = before ~ rep(func) ^^ foldExpression
 }
 
-trait AssignmentParser extends ArithmParser{
+trait AssignmentParser extends RegexParsers { self: ArithmParser with IdentifierParser =>
   implicit def variableToExpression(v: Variable):Expression = GerVar(v)
 
   def assignments = declareVars | assign | assignPlus |assignMinus |assignTimes |assignDivide |assignRemainder |
