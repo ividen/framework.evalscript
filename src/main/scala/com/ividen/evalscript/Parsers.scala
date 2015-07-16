@@ -62,6 +62,9 @@ trait ArithmParser extends RegexParsers {self: LiteralParser with IdentifierPars
   def divide: Parser[E => E] = "/" ~> factor ^^ { case b => `/`(_, b) }
   def remainder: Parser[E => E] = "%" ~> factor ^^ { case b => `%`(_, b) }
 
+  def postfixInc: Parser[E] = variable <~ "++" ^^ `:++`
+  def postfixDec: Parser[E] = variable <~ "--" ^^ `:--`
+
   def logicalNot: Parser[E] = "!" ~> factor ^^ `!:`
   def bitwiseNot: Parser[E] = "~" ~> factor ^^ `~:`
   def prefixInc: Parser[E] = "++" ~> variable ^^ `++:`
@@ -78,11 +81,12 @@ trait ArithmParser extends RegexParsers {self: LiteralParser with IdentifierPars
   def logicalAnd: Parser[E => E] = "&&" ~> bitwiseOrGroup ^^ { case b => `&&`(_, b) }
   def logicalOr: Parser[E => E] = "||" ~> logicalAndGroup ^^ { case b => `||`(_, b) }
 
-  private def factor: Parser[E] = literalExpression | variableExpression  | "(" ~> arithm <~ ")" | unaryGroup
+  private def factor: Parser[E] = literalExpression | postfixGroup | variableExpression  | "(" ~> arithm <~ ")"  | unaryGroup
   private def literalExpression: Parser[E] = scriptLiteral ^^ LiteralExpression
   private def variableExpression: Parser[E] = variable ^^ GerVar
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
 
+  private def postfixGroup = postfixInc | postfixDec
   private def bitwiseAndGroup = operationPrecedence(bitwiseShiftGroup,bitwiseAnd)
   private def bitwiseXorGroup = operationPrecedence(bitwiseAndGroup,bitwiseXor)
   private def bitwiseOrGroup = operationPrecedence(bitwiseXorGroup,bitwiseOr)
@@ -102,7 +106,7 @@ trait AssignmentParser extends RegexParsers { self: ArithmParser with Identifier
     assignLogicalNot|assignBitwiseNot | assignBitwiseRightShift |
     assignBitwiseAnd |assignBitwiseXor | assignBitwiseOr | assignLogicalAnd | assignLogicalOr
 
-  def declareVars : Parser[DeclareVars] = "var" ~> repsep(newVar,",".r) ^^ (DeclareVars(_))
+  def declareVars : Parser[DeclareVars] = "var" ~> repsep(newVar,",".r)<~"[' '\n\r;]*".r ^^ (DeclareVars(_))
   def assign: Parser[`=`] = variable ~ "=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, a) }
   def assignPlus: Parser[`=`] = variable ~ "+=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `:+`(v, a)) }
   def assignMinus: Parser[`=`] = variable ~ "-=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `:-`(v, a)) }

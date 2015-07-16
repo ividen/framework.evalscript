@@ -1,5 +1,6 @@
 package com.ividen.evalscript
 
+import scala.annotation.tailrec
 import scala.collection.mutable
 
 object Interpreter {
@@ -9,9 +10,10 @@ object Interpreter {
 
     private def processElement(e: ScriptElement) = e match {
       case exp: Expression => println(processExpression(exp))
-      case DeclareVars(l) => l.foreach(processAssignment)
+      case DeclareVars(l) =>l.foreach(processAssignment)
       case assignment: `=` => processAssignment(assignment)
     }
+
 
     private def processExpression(e: Expression): Literal = e match {
       case LiteralExpression(l: Literal) => l
@@ -83,7 +85,9 @@ case class ExecutionContext(globals: Map[String,_] = Map.empty){
 
 object Main2 extends EvalScriptParser {
   def main(args: Array[String]) {
-    val s = "var k=1,l,m=0.8  $multiplier=10*k*m"
+    val s = "var k=1,l=1,m \n $multiplier = k++ $test=k"
+
+    val i = 1;
 
 
     val res = parseAll(script, s).get
@@ -91,5 +95,8 @@ object Main2 extends EvalScriptParser {
     val context = ExecutionContext()
     Interpreter.process(res,context)
     println(context.global.vars)
+
+
+
   }
 }
