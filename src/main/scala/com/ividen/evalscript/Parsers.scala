@@ -3,14 +3,23 @@ package com.ividen.evalscript
 import org.apache.commons.lang3.StringEscapeUtils
 import scala.util.parsing.combinator._
 
-trait EvalScriptParser extends IfElseParser with RepeatParser with StatementParser with ExpressionParser with LiteralParser with IdentifierParser with AssignmentParser{
-  def script : Parser[Script] = statemetList ^^ (Script(_))
+trait EvalScriptParser extends IfElseParser with RepeatParser with SwitchParser with StatementParser with ExpressionParser with LiteralParser with IdentifierParser with AssignmentParser{
+  def script : Parser[Script] = statementList ^^ (Script(_))
 }
 
 trait IfElseParser extends RegexParsers{ self: StatementParser with ExpressionParser =>
   def if_else: Parser[ScriptElement] = if_ ~ rep(_else) ^^ { case i ~ e => `if else`(i, e) }
   private def if_ = "if" ~> (condition ~ statement) ^^ { case c ~ s => `if`(c, `{}`(Seq(s))) }
   private def _else = ("else" ~> (condition.? ~ statement)) ^^ { case c ~ s => `else`(c, `{}`(Seq(s))) }
+  private def condition: Parser[Expression] = "(" ~> expression <~ ")"
+}
+
+trait SwitchParser extends RegexParsers{self: StatementParser with ExpressionParser with LiteralParser =>
+  def switch_ = "switch" ~> condition ~ caseBlock ^^ { case e ~ x => `switch`(e, x._1.fold(List.empty[`case`])(x => x), x._2.flatMap(x => x)) }
+  def caseBlock = "{" ~> caseClauses.? ~ defaultClause.? <~ "}"
+  def caseClauses = caseClause.+
+  def caseClause = "case" ~ scriptLiteral ~ ":" ~ statementList.? ^^ {case _ ~ l ~ _ ~ b => `case`(l,b)}
+  def defaultClause = "default" ~> ":" ~> statementList.?
   private def condition: Parser[Expression] = "(" ~> expression <~ ")"
 }
 
@@ -23,9 +32,9 @@ trait RepeatParser extends RegexParsers{ self: StatementParser with ExpressionPa
   private def condition: Parser[Expression] = "(" ~> expression <~ ")"
 }
 
-trait StatementParser extends RegexParsers { self: ExpressionParser with AssignmentParser with IfElseParser with RepeatParser=>
-  def statemetList = statements ^^ (`{}`(_))
-  def statement: Parser[ScriptElement] =  repeat | if_else | assignments | expression | block
+trait StatementParser extends RegexParsers { self: ExpressionParser with AssignmentParser with IfElseParser with RepeatParser with SwitchParser=>
+  def statementList = statements ^^ (`{}`(_))
+  def statement: Parser[ScriptElement] =  repeat | switch_ | if_else | assignments | expression | block
   def statements =  statement*
   def block: Parser[ScriptElement]= ("{" ~> statements )<~"}" ^^ (`{}`(_))
 }

@@ -48,6 +48,8 @@ case class `if else`(i: `if`, e: Seq[`else`]) extends ScriptElement
 case class `while do`(e: Expression, block: `{}`) extends ScriptElement
 case class `do while`(e: Expression, block: `{}`) extends ScriptElement
 case class `for`(init: Expression, check: Expression, postfix: Expression, block: `{}`) extends ScriptElement
+case class `case`(l: Literal, b: Option[`{}`]) extends ScriptElement
+case class `switch`(e: Expression, cases: Seq[`case`], default: Option[`{}`]) extends ScriptElement
 
 sealed trait ExpressionElement extends ScriptElement
 

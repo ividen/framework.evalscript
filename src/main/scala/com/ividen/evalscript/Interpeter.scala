@@ -14,15 +14,28 @@ object Interpreter {
 
     def process = block.items.foreach(processElement)
 
-
     private def processElement(e: ScriptElement): Unit = e match {
       case exp: Expression => processExpression(exp)
       case DeclareVars(l) => l.foreach(declareVar)
       case assignment: `=` => processAssignment(assignment)
       case `if else`(i, e) => processIfElse(i, e)
-      case `while do`(e, b) => processWhileDo(e, b)
-      case `do while`(e, b) => processDoWhile(e, b)
+      case `while do`(e, b) => processWhileDo(e, b)  //todo barboza check break
+      case `do while`(e, b) => processDoWhile(e, b)  //todo barboza check break
+      case `switch`(e,c,d) => processSwitch(e,c,d)
       case b: `{}` => processNewBlock(b)
+    }
+
+    private def processSwitch(condition: Expression, cases: Seq[`case`], default: Option[`{}`]) ={
+//      val literal = processExpression(condition)
+//      val i = cases.iterator
+//        while(i.hasNext) {
+//          val next = i.next()
+//          if ((literal == next.l).toBooleanLiteral.value) {
+//            processNewBlock(next.b)
+//            while (i.hasNext) processNewBlock(i.next.b)  //todo aguzanov breack statement
+//          }
+//        }
+      println(condition,cases,default)
     }
 
     private def declareVar(e: `=`) = localContext.newVar(e.l, processExpression(e.r))
@@ -111,55 +124,79 @@ case class LocalContext(parent: Option[LocalContext] = None) {
 object Main2 extends EvalScriptParser {
   def main(args: Array[String]) {
 
+//    val s =
+//      """
+//        |
+//        |
+//        |if($purchaseAmount<100) $multiplier = 1
+//        |else($purchaseAmount<200) $multiplier = 2
+//        |else($purchaseAmount<300) $multiplier = 3
+//        |else($purchaseAmount<400) $multiplier = 4
+//        |else($purchaseAmount<500) $multiplier = 5
+//        |else($purchaseAmount<600) $multiplier = 6
+//        |else($purchaseAmount<700) $multiplier = 7
+//        |else($purchaseAmount<800) $multiplier = 8
+//        |else($purchaseAmount<900) $multiplier = 9
+//        |else($purchaseAmount<1000) $multiplier = 10
+//        |else($purchaseAmount<1100) $multiplier = 11
+//        |else($purchaseAmount<1200) $multiplier = 12
+//        |else($purchaseAmount<1300) $multiplier = 13
+//        |else($purchaseAmount<1400) $multiplier = 14
+//        |else($purchaseAmount<1500) $multiplier = 15
+//        |else($purchaseAmount<1600) $multiplier = 16
+//        |else $multiplier = 17
+//        |
+//        |$amount  = 100 * $multiplier
+//        |
+//        |if(true) $its_true = "YES"
+//        |
+//        |$iterationCount = 0
+//        |while($amount>100){
+//        |  $amount -=1
+//        |  $iterationCount++
+//        |}
+//        |
+//        |var i =  $iterationCount
+//        |$iteractionCount2 = 0
+//        |while(i>0){
+//        |  $amount++
+//        |  $iteractionCount2 ++
+//        |  i--
+//        |}
+//        |
+//        |$amount2 = 0
+//        |for(j = 0; j<100 ;j++){
+//        |  for(i =0 ; i <100 ; i++){
+//        |     $amount  += i
+//        |     $amount2 += j
+//        |  }
+//        |}
+//        |
+//        |var switchVar = 100
+//        |$testSwitch = ""
+//        |
+//        |switch(switchVar){
+//        |  case 10 : $testSwitch += "& test 10"
+//        |  case 100: $testSwitch += "& test 100"
+//        |  case 200: $testSwitch += "& test 200"
+//        |  case 300: $testSwitch += "& test 200"
+//        |  default: $testSwitch += "& default switch
+//        |}
+//        |
+//      """.stripMargin
+
     val s =
       """
         |
+        |var switchVar = 100
+        |$testSwitch = ""
         |
-        |if($purchaseAmount<100) $multiplier = 1
-        |else($purchaseAmount<200) $multiplier = 2
-        |else($purchaseAmount<300) $multiplier = 3
-        |else($purchaseAmount<400) $multiplier = 4
-        |else($purchaseAmount<500) $multiplier = 5
-        |else($purchaseAmount<600) $multiplier = 6
-        |else($purchaseAmount<700) $multiplier = 7
-        |else($purchaseAmount<800) $multiplier = 8
-        |else($purchaseAmount<900) $multiplier = 9
-        |else($purchaseAmount<1000) $multiplier = 10
-        |else($purchaseAmount<1100) $multiplier = 11
-        |else($purchaseAmount<1200) $multiplier = 12
-        |else($purchaseAmount<1300) $multiplier = 13
-        |else($purchaseAmount<1400) $multiplier = 14
-        |else($purchaseAmount<1500) $multiplier = 15
-        |else($purchaseAmount<1600) $multiplier = 16
-        |else $multiplier = 17
-        |
-        |$amount  = 100 * $multiplier
-        |
-        |if(true) $its_true = "YES"
-        |
-        |$iterationCount = 0
-        |while($amount>100){
-        |  $amount -=1
-        |  $iterationCount++
+        |switch(switchVar){
+        |  case 10 : {$testSwitch += "& test 10"}
+        |  case 100: {$testSwitch += "& test 100"}
+        |  case 200: {$testSwitch += "& test 200"}
+        |  case 300: {$testSwitch += "& test 200"}
         |}
-        |
-        |var i =  $iterationCount
-        |$iteractionCount2 = 0
-        |while(i>0){
-        |  $amount++
-        |  $iteractionCount2 ++
-        |  i--
-        |}
-        |
-        |$amount2 = 0
-        |for(j = 0; j<100 ;j++){
-        |  for(i =0 ; i <100 ; i++){
-        |     $amount  += i
-        |     $amount2 += j
-        |  }
-        |}
-        |
-        |
         |
       """.stripMargin
 
