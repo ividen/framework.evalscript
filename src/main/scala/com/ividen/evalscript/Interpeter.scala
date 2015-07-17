@@ -22,7 +22,6 @@ object Interpreter {
       case `if else`(i,e) => processIfElse(i,e)
       case `while do`(e,b) => processWhileDo(e,b)
       case `do while`(e,b) => processDoWhile(e,b)
-      case `for`(i,c,p,b) => processFor(i,c,p,b)
       case b: `{}` => processNewBlock(b)
     }
 
@@ -31,9 +30,8 @@ object Interpreter {
     private def processIfElse(_if: `if`, _else: Seq[`else`]) = if (checkIf(_if)) processNewBlock(_if.block) else _else.find(checkElse).foreach(x => processNewBlock(x.block))
     private def checkIf(_if: `if`): Boolean = processCondition(_if.c)
     private def checkElse(_else: `else`): Boolean = _else.c.fold(true)(c => processCondition(c))
-    private def processWhileDo(expression: Expression, value: `{}`): Unit = while(processCondition(expression)) processNewBlock(value)
-    private def processDoWhile(expression: Expression, value: `{}`): Unit = do processNewBlock(value) while(processCondition(expression))
-    private def processFor(expression: Expression, expression1: Expression, expression2: Expression, value: `{}`): Unit = 
+    private def processWhileDo(check: Expression, block: `{}`): Unit = while(processCondition(check)) processNewBlock(block)
+    private def processDoWhile(check: Expression, block: `{}`): Unit = do processNewBlock(block) while(processCondition(check))
     private def processCondition(c: Expression): Boolean = processExpression(c) match {
       case DecimalLiteral(x) if x != 0 => true
       case StringLiteral(x) if !x.isEmpty => true

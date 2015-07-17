@@ -15,7 +15,7 @@ trait IfElseParser extends RegexParsers{ self: StatementParser with ArithmParser
 }
 
 trait RepeatParser extends RegexParsers{ self: StatementParser with ArithmParser =>
-  def for_ : Parser[ScriptElement] = forBegin ~> arithm ~ ";" ~ arithm ~ ":" ~ arithm ~")"~ statement ^^ { case i ~ _ ~ c ~ _ ~ p~ _ ~ s => `for`(i, c, p, `{}`(Seq(s))) }
+  def for_ : Parser[ScriptElement] = forBegin ~> arithm ~ ";" ~ arithm ~ ":" ~ arithm ~ ")" ~ statement ^^ { case init ~ _ ~ check ~ _ ~ postfix ~ _ ~ statement => `{}`(Seq(init, `while do`(check, `{}`(Seq(statement, postfix))))) }
   def doWhile: Parser[ScriptElement] = doStatement ~ "while" ~ condition ^^ { case s ~ _ ~ c => `do while`(c, `{}`(Seq(s))) }
   def whileDo: Parser[ScriptElement] = "while" ~> condition ~ doStatement ^^ { case c ~ s => `while do`(c, `{}`(Seq(s))) }
 
