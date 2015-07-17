@@ -5,23 +5,23 @@ import scala.collection.mutable
 
 object Interpreter {
 
-  class ScriptExecution(script: Script,globalContext: GlobalContext) {
-    def process = new BlockExecution(script.block,globalContext).process
+  class ScriptExecution(script: Script, globalContext: GlobalContext) {
+    def process = new BlockExecution(script.block, globalContext).process
   }
-  
-  class BlockExecution(block: `{}`, globalContext: GlobalContext, rootLocalContext: Option[LocalContext] = None){
+
+  class BlockExecution(block: `{}`, globalContext: GlobalContext, rootLocalContext: Option[LocalContext] = None) {
     val localContext = LocalContext(rootLocalContext)
 
     def process = block.items.foreach(processElement)
 
 
-    private def processElement(e: ScriptElement):Unit = e match {
+    private def processElement(e: ScriptElement): Unit = e match {
       case exp: Expression => processExpression(exp)
-      case DeclareVars(l) =>l.foreach(declareVar)
+      case DeclareVars(l) => l.foreach(declareVar)
       case assignment: `=` => processAssignment(assignment)
-      case `if else`(i,e) => processIfElse(i,e)
-      case `while do`(e,b) => processWhileDo(e,b)
-      case `do while`(e,b) => processDoWhile(e,b)
+      case `if else`(i, e) => processIfElse(i, e)
+      case `while do`(e, b) => processWhileDo(e, b)
+      case `do while`(e, b) => processDoWhile(e, b)
       case b: `{}` => processNewBlock(b)
     }
 
@@ -30,8 +30,8 @@ object Interpreter {
     private def processIfElse(_if: `if`, _else: Seq[`else`]) = if (checkIf(_if)) processNewBlock(_if.block) else _else.find(checkElse).foreach(x => processNewBlock(x.block))
     private def checkIf(_if: `if`): Boolean = processCondition(_if.c)
     private def checkElse(_else: `else`): Boolean = _else.c.fold(true)(c => processCondition(c))
-    private def processWhileDo(check: Expression, block: `{}`): Unit = while(processCondition(check)) processNewBlock(block)
-    private def processDoWhile(check: Expression, block: `{}`): Unit = do processNewBlock(block) while(processCondition(check))
+    private def processWhileDo(check: Expression, block: `{}`): Unit = while (processCondition(check)) processNewBlock(block)
+    private def processDoWhile(check: Expression, block: `{}`): Unit = do processNewBlock(block) while (processCondition(check))
     private def processCondition(c: Expression): Boolean = processExpression(c) match {
       case DecimalLiteral(x) if x != 0 => true
       case StringLiteral(x) if !x.isEmpty => true
@@ -44,16 +44,16 @@ object Interpreter {
       case `:+`(l, r) => processExpression(l) + processExpression(r)
       case `:-`(l, r) => processExpression(l) - processExpression(r)
       case `/`(l, r) => processExpression(l) / processExpression(r)
-      case `*`(l, r) =>processExpression(l) * processExpression(r)
+      case `*`(l, r) => processExpression(l) * processExpression(r)
       case `%`(l, r) => processExpression(l) % processExpression(r)
       case `!:`(r) => !processExpression(r)
       case `~:`(r) => ~processExpression(r)
       case `-:`(r) => -processExpression(r)
       case `+:`(r) => +processExpression(r)
-      case `++:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v,LiteralExpression(result)));result
-      case `--:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v,LiteralExpression(result)));result
-      case `:++`(v) => val result = processExpression(GerVar(v)) ; processAssignment(`=`(v,LiteralExpression(result +  DecimalLiteral(BigDecimal(1)))));result
-      case `:--`(v) => val result = processExpression(GerVar(v)) ; processAssignment(`=`(v,LiteralExpression(result -  DecimalLiteral(BigDecimal(1)))));result
+      case `++:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
+      case `--:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
+      case `:++`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result + DecimalLiteral(BigDecimal(1))))); result
+      case `:--`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result - DecimalLiteral(BigDecimal(1))))); result
       case `>>`(l, r) => processExpression(l) >> processExpression(r)
       case `<<`(l, r) => processExpression(l) << processExpression(r)
       case `&`(l, r) => processExpression(l) & processExpression(r)
@@ -68,23 +68,23 @@ object Interpreter {
       case `>=`(l, r) => processExpression(l) >= processExpression(r)
       case `<=`(l, r) => processExpression(l) <= processExpression(r)
       case GerVar(v: LocalVariable) => localContext(v)
-      case  GerVar(v: GlobalVairable) => globalContext(v)
+      case GerVar(v: GlobalVairable) => globalContext(v)
     }
 
-    private def processAssignment(assignment: `=`) = (assignment.l,assignment.r) match {
-      case (v:LocalVariable,e) => localContext.set(v,processExpression(e))
-      case (g:GlobalVairable,e) => globalContext.set(g,processExpression(e))
+    private def processAssignment(assignment: `=`) = (assignment.l, assignment.r) match {
+      case (v: LocalVariable, e) => localContext.set(v, processExpression(e))
+      case (g: GlobalVairable, e) => globalContext.set(g, processExpression(e))
     }
-    
+
   }
 
-  def process(script: Script, globalContext: GlobalContext) = new ScriptExecution(script,globalContext).process
+  def process(script: Script, globalContext: GlobalContext) = new ScriptExecution(script, globalContext).process
 }
 
-class GlobalContext(initVars: Map[String,_] = Map.empty){
-  var vars = mutable.Map[String,Literal]() ++ initVars.map(e => e._1 -> valToLiteral(e._2))
-  def apply(v: GlobalVairable): Literal  = vars.getOrElse(v.name, NullLiteral)
-  def set(v: GlobalVairable, value : Literal) = vars.put(v.name, value)
+class GlobalContext(initVars: Map[String, _] = Map.empty) {
+  var vars = mutable.Map[String, Literal]() ++ initVars.map(e => e._1 -> valToLiteral(e._2))
+  def apply(v: GlobalVairable): Literal = vars.getOrElse(v.name, NullLiteral)
+  def set(v: GlobalVairable, value: Literal) = vars.put(v.name, value)
   private def valToLiteral(value: Any) = value match {
     case s: String => StringLiteral(s)
     case x: Int => DecimalLiteral(BigDecimal(x))
@@ -93,51 +93,79 @@ class GlobalContext(initVars: Map[String,_] = Map.empty){
     case x: Byte => DecimalLiteral(BigDecimal(x))
     case x: Float => DecimalLiteral(BigDecimal(x))
     case x: Double => DecimalLiteral(BigDecimal(x))
-    case null  => NullLiteral
+    case null => NullLiteral
     case x: Boolean => BooleanLiteral(x)
     case x => throw new IllegalArgumentException(s"Can't use $value for emaluation!")
   }
 }
 
-case class LocalContext(parent: Option[LocalContext] = None){
-  val vars: mutable.HashMap[String,Literal] = new mutable.HashMap[String,Literal]()
-  
-  def apply(v: LocalVariable): Literal  = vars.getOrElse(v.name, parent.fold[Literal](NullLiteral)(c => c.apply(v)))
-  def set(v: LocalVariable, value : Literal) = findContext(v).fold(this)(x =>x).vars.put(v.name , value)
-  def newVar(v: Variable,value: Literal) =vars.put(v.name , value)
-  protected def findContext(v:LocalVariable): Option[LocalContext] = if(vars.contains(v.name)) Some(this) else parent.fold[Option[LocalContext]](None)(c => c.findContext(v))
+case class LocalContext(parent: Option[LocalContext] = None) {
+  val vars: mutable.HashMap[String, Literal] = new mutable.HashMap[String, Literal]()
+
+  def apply(v: LocalVariable): Literal = vars.getOrElse(v.name, parent.fold[Literal](NullLiteral)(c => c.apply(v)))
+  def set(v: LocalVariable, value: Literal) = findContext(v).fold(this)(x => x).vars.put(v.name, value)
+  def newVar(v: Variable, value: Literal) = vars.put(v.name, value)
+  protected def findContext(v: LocalVariable): Option[LocalContext] = if (vars.contains(v.name)) Some(this) else parent.fold[Option[LocalContext]](None)(c => c.findContext(v))
 }
 
 object Main2 extends EvalScriptParser {
   def main(args: Array[String]) {
+
     val s =
       """
         |
+        |$amount = 0
         |
-        |if($purchaseAmount<100) $multiplier = 1
-        |else($purchaseAmount<200) $multiplier = 2
-        |else($purchaseAmount<300) $multiplier = 3
-        |else($purchaseAmount<400) $multiplier = 4
-        |else($purchaseAmount<500) $multiplier = 5
-        |else($purchaseAmount<600) $multiplier = 6
-        |else($purchaseAmount<700) $multiplier = 7
-        |else($purchaseAmount<800) $multiplier = 8
-        |else($purchaseAmount<900) $multiplier = 9
-        |else($purchaseAmount<1000) $multiplier = 10
-        |else($purchaseAmount<1100) $multiplier = 11
-        |else($purchaseAmount<1200) $multiplier = 12
-        |else($purchaseAmount<1300) $multiplier = 13
-        |else($purchaseAmount<1400) $multiplier = 14
-        |else($purchaseAmount<1500) $multiplier = 15
-        |else($purchaseAmount<1600) $multiplier = 16
-        |else $multiplier = 17
-        |
-        |$amount  = 100 * $multiplier / $purchaseAmount
-        |
-        |if(true) $its_true = "YES"
-        |
+        |for(i =0 ; i <100 ; i++){
+        | $amount += i
+        |}
         |
       """.stripMargin
+//    val s =
+//      """
+//        |
+//        |
+//        |if($purchaseAmount<100) $multiplier = 1
+//        |else($purchaseAmount<200) $multiplier = 2
+//        |else($purchaseAmount<300) $multiplier = 3
+//        |else($purchaseAmount<400) $multiplier = 4
+//        |else($purchaseAmount<500) $multiplier = 5
+//        |else($purchaseAmount<600) $multiplier = 6
+//        |else($purchaseAmount<700) $multiplier = 7
+//        |else($purchaseAmount<800) $multiplier = 8
+//        |else($purchaseAmount<900) $multiplier = 9
+//        |else($purchaseAmount<1000) $multiplier = 10
+//        |else($purchaseAmount<1100) $multiplier = 11
+//        |else($purchaseAmount<1200) $multiplier = 12
+//        |else($purchaseAmount<1300) $multiplier = 13
+//        |else($purchaseAmount<1400) $multiplier = 14
+//        |else($purchaseAmount<1500) $multiplier = 15
+//        |else($purchaseAmount<1600) $multiplier = 16
+//        |else $multiplier = 17
+//        |
+//        |$amount  = 100 * $multiplier
+//        |
+//        |if(true) $its_true = "YES"
+//        |
+//        |$iterationCount = 0
+//        |while($amount>100){
+//        |  $amount -=1
+//        |  $iterationCount++
+//        |}
+//        |
+//        |var i =  $iterationCount
+//        |$iteractionCount2 = 0
+//        |while(i>0){
+//        |  $amount++
+//        |  $iteractionCount2 ++
+//        |  i--
+//        |}
+//        |
+//        |for(i =0 ; i <100 ; i++){
+//        | $amount += i
+//        |}
+//        |
+//      """.stripMargin
 
     println(s)
 
@@ -146,14 +174,10 @@ object Main2 extends EvalScriptParser {
 
     val res = parseAll(script, s).get
     println(res)
-    val context= new GlobalContext(Map[String,Any]("purchaseAmount" -> 1180))
-    Interpreter.process(res,context)
-
-
+    val context = new GlobalContext(Map[String, Any]("purchaseAmount" -> 1180))
+    Interpreter.process(res, context)
 
     println(context.vars)
-
-
 
   }
 }
