@@ -3,39 +3,37 @@ package com.ividen.evalscript
 import org.apache.commons.lang3.StringEscapeUtils
 import scala.util.parsing.combinator._
 
-trait EvalScriptParser extends IfElseParser with RepeatParser with StatementParser with ArithmParser with LiteralParser with IdentifierParser with AssignmentParser{
+trait EvalScriptParser extends IfElseParser with RepeatParser with StatementParser with ExpressionParser with LiteralParser with IdentifierParser with AssignmentParser{
   def script : Parser[Script] = statemetList ^^ (Script(_))
 }
 
-trait IfElseParser extends RegexParsers{ self: StatementParser with ArithmParser =>
+trait IfElseParser extends RegexParsers{ self: StatementParser with ExpressionParser =>
   def if_else: Parser[ScriptElement] = if_ ~ rep(_else) ^^ { case i ~ e => `if else`(i, e) }
   private def if_ = "if" ~> (condition ~ statement) ^^ { case c ~ s => `if`(c, `{}`(Seq(s))) }
   private def _else = ("else" ~> (condition.? ~ statement)) ^^ { case c ~ s => `else`(c, `{}`(Seq(s))) }
-  private def condition: Parser[Expression] = "(" ~> arithm <~ ")"
+  private def condition: Parser[Expression] = "(" ~> expression <~ ")"
 }
 
-trait RepeatParser extends RegexParsers{ self: StatementParser with ArithmParser =>
-  def for_ : Parser[ScriptElement] = forBegin ~> (arithm ~ ";" ~ arithm ~ ":" ~ arithm ~ ")" ~ statement ^^ { case init ~ _ ~ check ~ _ ~ postfix ~ _ ~ statement => `{}`(Seq(init, `while do`(check, `{}`(Seq(statement, postfix))))) }
+trait RepeatParser extends RegexParsers{ self: StatementParser with ExpressionParser with AssignmentParser =>
+  def repeat = for_ | doWhile | whileDo
+  def for_ : Parser[ScriptElement] = "for"~ "(" ~ assignments ~ ";" ~ expression ~ ";" ~ expression ~ ")" ~ statement ^^ { case  _ ~ _~  init ~ _ ~ check ~ _ ~ postfix ~ _ ~ statement => `{}`(Seq(init, `while do`(check, `{}`(Seq(statement, postfix)))))}
   def doWhile: Parser[ScriptElement] = doStatement ~ "while" ~ condition ^^ { case s ~ _ ~ c => `do while`(c, `{}`(Seq(s))) }
   def whileDo: Parser[ScriptElement] = "while" ~> condition ~ statement ^^ { case c ~ s => `while do`(c, `{}`(Seq(s))) }
-
-  def repeat = for_ | doWhile | whileDo
   private def doStatement = "do" ~> statement
-  private def condition: Parser[Expression] = "(" ~> arithm <~ ")"
-  private def forBegin = "for" ~ "("
+  private def condition: Parser[Expression] = "(" ~> expression <~ ")"
 }
 
-trait StatementParser extends RegexParsers { self: ArithmParser with AssignmentParser with IfElseParser with RepeatParser=>
+trait StatementParser extends RegexParsers { self: ExpressionParser with AssignmentParser with IfElseParser with RepeatParser=>
   def statemetList = statements ^^ (`{}`(_))
-  def statement: Parser[ScriptElement] =  repeat | if_else | assignments | arithm | block
+  def statement: Parser[ScriptElement] =  repeat | if_else | assignments | expression | block
   def statements =  statement*
   def block: Parser[ScriptElement]= ("{" ~> statements )<~"}" ^^ (`{}`(_))
 }
 
-trait ArithmParser extends RegexParsers {self: LiteralParser with IdentifierParser =>
+trait ExpressionParser extends RegexParsers {self: LiteralParser with IdentifierParser =>
   type E = Expression
 
-  def arithm: Parser[E] = logicalOrGroup
+  def expression: Parser[E] = logicalOrGroup
 
   def minus: Parser[E => E] = ("-" ~> multiplyGroup) ^^ { case b => `:-`(_, b) }
   def plus: Parser[E => E] = ("+" ~> multiplyGroup) ^^ { case b => `:+`(_, b) }
@@ -64,15 +62,15 @@ trait ArithmParser extends RegexParsers {self: LiteralParser with IdentifierPars
   def logicalOr: Parser[E => E] = "||" ~> logicalAndGroup ^^ { case b => `||`(_, b) }
 
 
-  def isEq: Parser[E => E] = "==" ~> arithm ^^ { case b => `:==`(_, b) }
-  def isNotEq: Parser[E => E] = "!=" ~> arithm ^^ { case b => `:!=`(_, b) }
-  def lessThen: Parser[E => E] = "<" ~> arithm ^^ { case b => `<`(_, b) }
-  def lessThenOrEq: Parser[E => E] = "<=" ~> arithm ^^ { case b => `<=`(_, b) }
-  def greaterThen: Parser[E => E] = ">" ~> arithm ^^ { case b => `>`(_, b) }
-  def greaterThenOrEq: Parser[E => E] = ">=" ~> arithm ^^ { case b => `>`(_, b) }
+  def isEq: Parser[E => E] = "==" ~> expression ^^ { case b => `:==`(_, b) }
+  def isNotEq: Parser[E => E] = "!=" ~> expression ^^ { case b => `:!=`(_, b) }
+  def lessThen: Parser[E => E] = "<" ~> expression ^^ { case b => `<`(_, b) }
+  def lessThenOrEq: Parser[E => E] = "<=" ~> expression ^^ { case b => `<=`(_, b) }
+  def greaterThen: Parser[E => E] = ">" ~> expression ^^ { case b => `>`(_, b) }
+  def greaterThenOrEq: Parser[E => E] = ">=" ~> expression ^^ { case b => `>`(_, b) }
 
 
-  private def factor: Parser[E] = literalExpression | postfixGroup | variableExpression  | "(" ~> arithm <~ ")"  | unaryGroup
+  private def factor: Parser[E] = literalExpression | postfixGroup | variableExpression  | "(" ~> expression <~ ")"  | unaryGroup
   private def literalExpression: Parser[E] = scriptLiteral ^^ LiteralExpression
   private def variableExpression: Parser[E] = variable ^^ GerVar
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
@@ -92,7 +90,7 @@ trait ArithmParser extends RegexParsers {self: LiteralParser with IdentifierPars
   private def operationPrecedence (before: Parser[E], func : Parser[E=>E]) = before ~ rep(func) ^^ foldExpression
 }
 
-trait AssignmentParser extends RegexParsers { self: ArithmParser with IdentifierParser =>
+trait AssignmentParser extends RegexParsers { self: ExpressionParser with IdentifierParser =>
   implicit def variableToExpression(v: Variable):Expression = GerVar(v)
 
   def assignments = declareVars | assign | assignPlus |assignMinus |assignTimes |assignDivide |assignRemainder |
@@ -100,21 +98,21 @@ trait AssignmentParser extends RegexParsers { self: ArithmParser with Identifier
     assignBitwiseAnd |assignBitwiseXor | assignBitwiseOr | assignLogicalAnd | assignLogicalOr
 
   def declareVars : Parser[DeclareVars] = "var" ~> repsep(newVar,",".r)<~"[' '\n\r;]*".r ^^ (DeclareVars(_))
-  def assign: Parser[`=`] = variable ~ "=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, a) }
-  def assignPlus: Parser[`=`] = variable ~ "+=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `:+`(v, a)) }
-  def assignMinus: Parser[`=`] = variable ~ "-=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `:-`(v, a)) }
-  def assignTimes: Parser[`=`] = variable ~ "*=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `*`(v, a)) }
-  def assignDivide: Parser[`=`] = variable ~ "/=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `/`(v, a)) }
-  def assignRemainder: Parser[`=`] = variable ~ "%=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `%`(v, a)) }
-  def assignLogicalNot: Parser[`=`] = variable ~ "!=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `!:`(a)) }
-  def assignBitwiseNot: Parser[`=`] = variable ~ "~=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `~:`(a)) }
-  def assignBitwiseLeftShift: Parser[`=`] = variable ~ "<<=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `>>`(v, a)) }
-  def assignBitwiseRightShift: Parser[`=`] = variable ~ ">>=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `<<`(v, a)) }
-  def assignBitwiseAnd: Parser[`=`] = variable ~ "&=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `&`(v, a)) }
-  def assignBitwiseXor: Parser[`=`] = variable ~ "^=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `^`(v, a)) }
-  def assignBitwiseOr: Parser[`=`] = variable ~ "|=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `|`(v, a)) }
-  def assignLogicalAnd: Parser[`=`] = variable ~ "&&=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `&&`(v, a)) }
-  def assignLogicalOr: Parser[`=`] = variable ~ "||=" ~ arithm ^^ { case v ~ _ ~ a => `=`(v, `||`(v, a)) }
+  def assign: Parser[`=`] = variable ~ "=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, a) }
+  def assignPlus: Parser[`=`] = variable ~ "+=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `:+`(v, a)) }
+  def assignMinus: Parser[`=`] = variable ~ "-=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `:-`(v, a)) }
+  def assignTimes: Parser[`=`] = variable ~ "*=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `*`(v, a)) }
+  def assignDivide: Parser[`=`] = variable ~ "/=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `/`(v, a)) }
+  def assignRemainder: Parser[`=`] = variable ~ "%=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `%`(v, a)) }
+  def assignLogicalNot: Parser[`=`] = variable ~ "!=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `!:`(a)) }
+  def assignBitwiseNot: Parser[`=`] = variable ~ "~=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `~:`(a)) }
+  def assignBitwiseLeftShift: Parser[`=`] = variable ~ "<<=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `>>`(v, a)) }
+  def assignBitwiseRightShift: Parser[`=`] = variable ~ ">>=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `<<`(v, a)) }
+  def assignBitwiseAnd: Parser[`=`] = variable ~ "&=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `&`(v, a)) }
+  def assignBitwiseXor: Parser[`=`] = variable ~ "^=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `^`(v, a)) }
+  def assignBitwiseOr: Parser[`=`] = variable ~ "|=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `|`(v, a)) }
+  def assignLogicalAnd: Parser[`=`] = variable ~ "&&=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `&&`(v, a)) }
+  def assignLogicalOr: Parser[`=`] = variable ~ "||=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `||`(v, a)) }
   private def newVar: Parser[`=`] = assign | nullVar
   private def nullVar: Parser[`=`] = variable ^^ { case v => `=`(v, LiteralExpression(NullLiteral)) }
 }

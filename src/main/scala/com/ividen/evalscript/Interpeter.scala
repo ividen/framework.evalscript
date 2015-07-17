@@ -114,58 +114,54 @@ object Main2 extends EvalScriptParser {
     val s =
       """
         |
-        |$amount = 0
         |
-        |for(i =0 ; i <100 ; i++){
-        | $amount += i
+        |if($purchaseAmount<100) $multiplier = 1
+        |else($purchaseAmount<200) $multiplier = 2
+        |else($purchaseAmount<300) $multiplier = 3
+        |else($purchaseAmount<400) $multiplier = 4
+        |else($purchaseAmount<500) $multiplier = 5
+        |else($purchaseAmount<600) $multiplier = 6
+        |else($purchaseAmount<700) $multiplier = 7
+        |else($purchaseAmount<800) $multiplier = 8
+        |else($purchaseAmount<900) $multiplier = 9
+        |else($purchaseAmount<1000) $multiplier = 10
+        |else($purchaseAmount<1100) $multiplier = 11
+        |else($purchaseAmount<1200) $multiplier = 12
+        |else($purchaseAmount<1300) $multiplier = 13
+        |else($purchaseAmount<1400) $multiplier = 14
+        |else($purchaseAmount<1500) $multiplier = 15
+        |else($purchaseAmount<1600) $multiplier = 16
+        |else $multiplier = 17
+        |
+        |$amount  = 100 * $multiplier
+        |
+        |if(true) $its_true = "YES"
+        |
+        |$iterationCount = 0
+        |while($amount>100){
+        |  $amount -=1
+        |  $iterationCount++
         |}
         |
+        |var i =  $iterationCount
+        |$iteractionCount2 = 0
+        |while(i>0){
+        |  $amount++
+        |  $iteractionCount2 ++
+        |  i--
+        |}
+        |
+        |$amount2 = 0
+        |for(j = 0; j<100 ;j++){
+        |  for(i =0 ; i <100 ; i++){
+        |     $amount  += i
+        |     $amount2 += j
+        |  }
+        |}
+        |
+        |
+        |
       """.stripMargin
-//    val s =
-//      """
-//        |
-//        |
-//        |if($purchaseAmount<100) $multiplier = 1
-//        |else($purchaseAmount<200) $multiplier = 2
-//        |else($purchaseAmount<300) $multiplier = 3
-//        |else($purchaseAmount<400) $multiplier = 4
-//        |else($purchaseAmount<500) $multiplier = 5
-//        |else($purchaseAmount<600) $multiplier = 6
-//        |else($purchaseAmount<700) $multiplier = 7
-//        |else($purchaseAmount<800) $multiplier = 8
-//        |else($purchaseAmount<900) $multiplier = 9
-//        |else($purchaseAmount<1000) $multiplier = 10
-//        |else($purchaseAmount<1100) $multiplier = 11
-//        |else($purchaseAmount<1200) $multiplier = 12
-//        |else($purchaseAmount<1300) $multiplier = 13
-//        |else($purchaseAmount<1400) $multiplier = 14
-//        |else($purchaseAmount<1500) $multiplier = 15
-//        |else($purchaseAmount<1600) $multiplier = 16
-//        |else $multiplier = 17
-//        |
-//        |$amount  = 100 * $multiplier
-//        |
-//        |if(true) $its_true = "YES"
-//        |
-//        |$iterationCount = 0
-//        |while($amount>100){
-//        |  $amount -=1
-//        |  $iterationCount++
-//        |}
-//        |
-//        |var i =  $iterationCount
-//        |$iteractionCount2 = 0
-//        |while(i>0){
-//        |  $amount++
-//        |  $iteractionCount2 ++
-//        |  i--
-//        |}
-//        |
-//        |for(i =0 ; i <100 ; i++){
-//        | $amount += i
-//        |}
-//        |
-//      """.stripMargin
 
     println(s)
 
@@ -175,9 +171,12 @@ object Main2 extends EvalScriptParser {
     val res = parseAll(script, s).get
     println(res)
     val context = new GlobalContext(Map[String, Any]("purchaseAmount" -> 1180))
+    for(i <- 1 to 1)
     Interpreter.process(res, context)
 
     println(context.vars)
+
+
 
   }
 }
