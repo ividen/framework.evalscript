@@ -9,16 +9,25 @@ trait EvalScriptParser extends IfElseParser with RepeatParser with StatementPars
 
 trait IfElseParser extends RegexParsers{ self: StatementParser with ArithmParser =>
   def if_else: Parser[ScriptElement] = if_ ~ rep(_else) ^^ { case i ~ e => `if else`(i, e) }
-  def if_ = "if" ~> (condition ~ statement) ^^ { case c ~ s => `if`(c, `{}`(Seq(s))) }
-  def _else = ("else" ~> (condition.? ~ statement)) ^^ { case c ~ s => `else`(c, `{}`(Seq(s))) }
-  def condition: Parser[Expression] = "(" ~> arithm <~ ")"
+  private def if_ = "if" ~> (condition ~ statement) ^^ { case c ~ s => `if`(c, `{}`(Seq(s))) }
+  private def _else = ("else" ~> (condition.? ~ statement)) ^^ { case c ~ s => `else`(c, `{}`(Seq(s))) }
+  private def condition: Parser[Expression] = "(" ~> arithm <~ ")"
 }
 
-trait RepeatParser extends RegexParsers
+trait RepeatParser extends RegexParsers{ self: StatementParser with ArithmParser =>
+  def for_ : Parser[ScriptElement] = forBegin ~> arithm ~ ";" ~ arithm ~ ":" ~ arithm ~")"~ statement ^^ { case i ~ _ ~ c ~ _ ~ p~ _ ~ s => `for`(i, c, p, `{}`(Seq(s))) }
+  def doWhile: Parser[ScriptElement] = doStatement ~ "while" ~ condition ^^ { case s ~ _ ~ c => `do while`(c, `{}`(Seq(s))) }
+  def whileDo: Parser[ScriptElement] = "while" ~> condition ~ doStatement ^^ { case c ~ s => `while do`(c, `{}`(Seq(s))) }
 
-trait StatementParser extends RegexParsers { self: ArithmParser with AssignmentParser with IfElseParser =>
+  def repeat = for_ | doWhile | whileDo
+  private def doStatement = "do" ~> statement
+  private def condition: Parser[Expression] = "(" ~> arithm <~ ")"
+  private def forBegin = "for" ~ "("
+}
+
+trait StatementParser extends RegexParsers { self: ArithmParser with AssignmentParser with IfElseParser with RepeatParser=>
   def statemetList = statements ^^ (`{}`(_))
-  def statement: Parser[ScriptElement] =  if_else | assignments | arithm | block
+  def statement: Parser[ScriptElement] =  repeat | if_else | assignments | arithm | block
   def statements =  statement*
   def block: Parser[ScriptElement]= ("{" ~> statements )<~"}" ^^ (`{}`(_))
 }

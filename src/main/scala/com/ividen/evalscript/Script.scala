@@ -45,6 +45,10 @@ case class `if`(c : Expression, block: `{}`)
 case class `else`(c: Option[Expression],block:`{}`)
 case class `if else`(i: `if`, e: Seq[`else`]) extends ScriptElement
 
+case class `while do`(e: Expression, block: `{}`) extends ScriptElement
+case class `do while`(e: Expression, block: `{}`) extends ScriptElement
+case class `for`(init: Expression, check: Expression, postfix: Expression, block: `{}`) extends ScriptElement
+
 sealed trait ExpressionElement extends ScriptElement
 
 sealed trait Variable extends ExpressionElement{

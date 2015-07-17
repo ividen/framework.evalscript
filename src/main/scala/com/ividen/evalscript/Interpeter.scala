@@ -14,11 +14,15 @@ object Interpreter {
 
     def process = block.items.foreach(processElement)
 
+
     private def processElement(e: ScriptElement):Unit = e match {
       case exp: Expression => processExpression(exp)
       case DeclareVars(l) =>l.foreach(declareVar)
       case assignment: `=` => processAssignment(assignment)
       case `if else`(i,e) => processIfElse(i,e)
+      case `while do`(e,b) => processWhileDo(e,b)
+      case `do while`(e,b) => processDoWhile(e,b)
+      case `for`(i,c,p,b) => processFor(i,c,p,b)
       case b: `{}` => processNewBlock(b)
     }
 
@@ -27,6 +31,9 @@ object Interpreter {
     private def processIfElse(_if: `if`, _else: Seq[`else`]) = if (checkIf(_if)) processNewBlock(_if.block) else _else.find(checkElse).foreach(x => processNewBlock(x.block))
     private def checkIf(_if: `if`): Boolean = processCondition(_if.c)
     private def checkElse(_else: `else`): Boolean = _else.c.fold(true)(c => processCondition(c))
+    private def processWhileDo(expression: Expression, value: `{}`): Unit = while(processCondition(expression)) processNewBlock(value)
+    private def processDoWhile(expression: Expression, value: `{}`): Unit = do processNewBlock(value) while(processCondition(expression))
+    private def processFor(expression: Expression, expression1: Expression, expression2: Expression, value: `{}`): Unit = 
     private def processCondition(c: Expression): Boolean = processExpression(c) match {
       case DecimalLiteral(x) if x != 0 => true
       case StringLiteral(x) if !x.isEmpty => true
@@ -107,48 +114,29 @@ object Main2 extends EvalScriptParser {
   def main(args: Array[String]) {
     val s =
       """
-        |var k = 1, l = 100
-        |$test_1_1 = k
-        |{
-        |  var k = 2*l
-        |  $test_2_1 = k
-        |  {
-        |    var k=3*l
-        |    $test_3_1 = k++
-        |    {
-        |       $test_4 = k+100
-        |    }
-        |  }
-        |  $test_2_2 = k
-        |}
         |
-        |$test_1_2 = k
         |
-        |if( (true && false) || (true || false))
-        |  $result = true
-        |else(true || false)
-        |  $result = false
-        |else
-        |  $somes_else = true
+        |if($purchaseAmount<100) $multiplier = 1
+        |else($purchaseAmount<200) $multiplier = 2
+        |else($purchaseAmount<300) $multiplier = 3
+        |else($purchaseAmount<400) $multiplier = 4
+        |else($purchaseAmount<500) $multiplier = 5
+        |else($purchaseAmount<600) $multiplier = 6
+        |else($purchaseAmount<700) $multiplier = 7
+        |else($purchaseAmount<800) $multiplier = 8
+        |else($purchaseAmount<900) $multiplier = 9
+        |else($purchaseAmount<1000) $multiplier = 10
+        |else($purchaseAmount<1100) $multiplier = 11
+        |else($purchaseAmount<1200) $multiplier = 12
+        |else($purchaseAmount<1300) $multiplier = 13
+        |else($purchaseAmount<1400) $multiplier = 14
+        |else($purchaseAmount<1500) $multiplier = 15
+        |else($purchaseAmount<1600) $multiplier = 16
+        |else $multiplier = 17
         |
-        |$resultString  = "\n"
-        |if($test_1_1 < 100){
-        |   $resultString += "$test_1_1 is equal " + $test_1_1 + "\n"
-        |}
+        |$amount  = 100 * $multiplier / $purchaseAmount
         |
-        |if($test_1_2 < 100){
-        |   $resultString += "$test_1_2 is equal " + $test_1_2 + "\n"
-        |}
-        |
-        |if($test_2_1 < 100){
-        |   $resultString += "$test_2_1 is equal " + $test_2_1 + "\n"
-        |}
-        |
-        |if($test_2_2 < 100){
-        |   $resultString += "$test_2_2 is equal " + $test_2_2 + "\n"
-        |}
-        |
-        |if((10+10*20 - 90) > 8) $resultString += " && > then 8"
+        |if(true) $its_true = "YES"
         |
         |
       """.stripMargin
@@ -160,8 +148,11 @@ object Main2 extends EvalScriptParser {
 
     val res = parseAll(script, s).get
     println(res)
-    val context= new GlobalContext()
+    val context= new GlobalContext(Map[String,Any]("purchaseAmount" -> 1180))
     Interpreter.process(res,context)
+
+
+
     println(context.vars)
 
 
