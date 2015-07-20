@@ -14,22 +14,22 @@ trait IfElseParser extends RegexParsers{ self: StatementParser with ExpressionPa
   private def condition: Parser[Expression] = "(" ~> expression <~ ")"
 }
 
-trait SwitchParser extends RegexParsers{self: StatementParser with ExpressionParser with LiteralParser =>
+trait SwitchParser extends RegexParsers{self: StatementParser with ExpressionParser with LiteralParser with KeywordParser =>
 
   def switch_case = switch_ ~ rep(case_)~ default_ .? <~ "}" ^^ { case c~cases~d => `switch`(c, cases, d.flatMap(x=>x)) }
   private def case_ = case_literal ~ statementList.? ^^ { case l ~ b => `case`(l, b) }
-  private def case_literal = "case " ~> expression <~ ":"
-  private def switch_ = "switch" ~> condition <~ "{"
-  private def default_ = "default" ~> ":" ~> statementList.?
+  private def case_literal =  caseKeyword ~> expression <~ ":"
+  private def switch_ = switchKeyword ~> condition <~ "{"
+  private def default_ = defaultKeyword ~> ":" ~> statementList.?
   private def condition: Parser[Expression] = "(" ~> expression <~ ")"
 }
 
-trait RepeatParser extends RegexParsers{ self: StatementParser with ExpressionParser with AssignmentParser =>
+trait RepeatParser extends RegexParsers{ self: StatementParser with ExpressionParser with AssignmentParser with KeywordParser =>
   def repeat = for_ | doWhile | whileDo
-  def for_ : Parser[ScriptElement] = "for"~ "(" ~ assignments ~ ";" ~ expression ~ ";" ~ expression ~ ")" ~ statement ^^ { case  _ ~ _~  init ~ _ ~ check ~ _ ~ postfix ~ _ ~ statement => `{}`(Seq(init, `while do`(check, `{}`(Seq(statement, postfix)))))}
-  def doWhile: Parser[ScriptElement] = doStatement ~ "while" ~ condition ^^ { case s ~ _ ~ c => `do while`(c, `{}`(Seq(s))) }
-  def whileDo: Parser[ScriptElement] = "while" ~> condition ~ statement ^^ { case c ~ s => `while do`(c, `{}`(Seq(s))) }
-  private def doStatement = "do" ~> statement
+  def for_ : Parser[ScriptElement] = forKeyword~ "(" ~ assignments ~ ";" ~ expression ~ ";" ~ expression ~ ")" ~ statement ^^ { case  _ ~ _~  init ~ _ ~ check ~ _ ~ postfix ~ _ ~ statement => `{}`(Seq(init, `while do`(check, `{}`(Seq(statement, postfix)))))}
+  def doWhile: Parser[ScriptElement] = doStatement ~ whileKeyword~ condition ^^ { case s ~ _ ~ c => `do while`(c, `{}`(Seq(s))) }
+  def whileDo: Parser[ScriptElement] = whileKeyword~> condition ~ statement ^^ { case c ~ s => `while do`(c, `{}`(Seq(s))) }
+  private def doStatement = doKeyword ~> statement
   private def condition: Parser[Expression] = "(" ~> expression <~ ")"
 }
 
@@ -129,11 +129,11 @@ trait AssignmentParser extends RegexParsers { self: ExpressionParser with Identi
 
 trait LiteralParser extends RegexParsers { self: KeywordParser =>
   override def skipWhitespace: Boolean = true
-  def nullLiteral =  "null" ^^ (_ => NullLiteral)
-  def booleanLiteral = ("true" | "false") ^^ toBooleanLiteral
-  def numericLiteral = hexIntegerLiteral | decimalLiteral
-  def stringLiteral = doubleQuoteStringLiteral | singleQuoteStringLiteral
-  def scriptLiteral = notKeyword ~> (nullLiteral | booleanLiteral | numericLiteral | stringLiteral)
+  def nullLiteral =  nullKeyword ^^ (_ => NullLiteral)
+  def booleanLiteral = (trueKeyword| falseKeyword) ^^ toBooleanLiteral
+  def numericLiteral = notKeyword ~> (hexIntegerLiteral | decimalLiteral)
+  def stringLiteral = notKeyword ~> (doubleQuoteStringLiteral | singleQuoteStringLiteral)
+  def scriptLiteral = nullLiteral | booleanLiteral | numericLiteral | stringLiteral
   def scriptLiterals = rep(scriptLiteral)
 
   private def decimalLiteral= """-?(\d+(\.\d*)?|\d*\.\d+)([eE][+-]?\d+)?[fFdD]?""".r ^^ toDecimalLiteral
@@ -166,8 +166,12 @@ trait KeywordParser extends RegexParsers{
   val continueKeyword = "continue"
   val defaultKeyword = "default"
   val varKeyword = "var"
+  val doKeyword = "do"
+  val nullKeyword = "null"
+  val trueKeyword = "true"
+  val falseKeyword = "false"
 
-  def keyword = ifKeyword | elseKeyword | switchKeyword | caseKeyword | whileKeyword | forKeyword | breakKeyword | continueKeyword | defaultKeyword | varKeyword
+  def keyword = ifKeyword | elseKeyword | switchKeyword | caseKeyword | whileKeyword | forKeyword | breakKeyword | continueKeyword | defaultKeyword | varKeyword | doKeyword
   def notKeyword = not(keyword)
 }
 

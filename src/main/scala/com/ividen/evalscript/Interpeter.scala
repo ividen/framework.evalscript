@@ -209,8 +209,7 @@ object Main2 extends EvalScriptParser {
     val context = new GlobalContext(Map[String, Any]("purchaseAmount" -> 20))
 
     Interpreter.process(res, context)
-    Console.readChar()
-    for(j <- (1 to 100))
+    for(j <- (1 to 1))
     Interpreter.process(res, context)
 
     println(context.vars)
