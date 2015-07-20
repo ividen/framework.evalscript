@@ -107,7 +107,7 @@ trait AssignmentParser extends RegexParsers { self: ExpressionParser with Identi
     assignLogicalNot|assignBitwiseNot | assignBitwiseRightShift |
     assignBitwiseAnd |assignBitwiseXor | assignBitwiseOr | assignLogicalAnd | assignLogicalOr
 
-  def declareVars : Parser[DeclareVars] = "var" ~> repsep(newVar,",".r)<~"[' '\n\r;]*".r ^^ (DeclareVars(_))
+  def declareVars : Parser[DeclareVars] = "var" ~> repsep(newVar,",".r) ^^ (DeclareVars(_))
   def assign: Parser[`=`] = variable ~ "=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, a) }
   def assignPlus: Parser[`=`] = variable ~ "+=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `:+`(v, a)) }
   def assignMinus: Parser[`=`] = variable ~ "-=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `:-`(v, a)) }
