@@ -49,58 +49,64 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
 
   def expression: Parser[E] = logicalOrGroup
 
-  def minus: Parser[E => E] = ("-" ~> multiplyGroup) ^^ { case b => `:-`(_, b) }
-  def plus: Parser[E => E] = ("+" ~> multiplyGroup) ^^ { case b => `:+`(_, b) }
-
-  def times: Parser[E => E] = "*" ~> factor ^^ { case b => `*`(_, b) }
-  def divide: Parser[E => E] = "/" ~> factor ^^ { case b => `/`(_, b) }
-  def remainder: Parser[E => E] = "%" ~> factor ^^ { case b => `%`(_, b) }
 
   def postfixInc: Parser[E] = variable <~ "++" ^^ `:++`
   def postfixDec: Parser[E] = variable <~ "--" ^^ `:--`
 
-  def logicalNot: Parser[E] = "!" ~> factor ^^ `!:`
-  def bitwiseNot: Parser[E] = "~" ~> factor ^^ `~:`
+  def index: Parser[E=>E] =  "[" ~ factor ~ "]" ^^ { case  _ ~ r ~ _  => `[]`(_, r) }
+
+
+  def logicalNot: Parser[E] = "!" ~> indexGroup ^^ `!:`
+  def bitwiseNot: Parser[E] = "~" ~> indexGroup ^^ `~:`
   def prefixInc: Parser[E] = "++" ~> variable ^^ `++:`
   def prefixDec: Parser[E] = "--" ~> variable ^^ `--:`
-  def unaryNegate: Parser[E] = "-" ~> factor ^^ `-:`
-  def unaryPlus: Parser[E] = "+" ~> factor ^^ `+:`
+  def unaryNegate: Parser[E] = "-" ~> indexGroup ^^ `-:`
+  def unaryPlus: Parser[E] = "+" ~> indexGroup ^^ `+:`
+
+
+  def times: Parser[E => E] = "*" ~> unaryGroup ^^ { case b => `*`(_, b) }
+  def divide: Parser[E => E] = "/" ~> unaryGroup ^^ { case b => `/`(_, b) }
+  def remainder: Parser[E => E] = "%" ~> unaryGroup ^^ { case b => `%`(_, b) }
+
+  def minus: Parser[E => E] = ("-" ~> multiplyGroup) ^^ { case b => `:-`(_, b) }
+  def plus: Parser[E => E] = ("+" ~> multiplyGroup) ^^ { case b => `:+`(_, b) }
 
   def bitwiseLeftShift: Parser[E => E] = "<<" ~> addGroup ^^ { case b => `>>`(_, b) }
   def bitwiseRightShift: Parser[E => E] = ">>" ~> addGroup ^^ { case b => `<<`(_, b) }
 
-  def bitwiseAnd: Parser[E => E] = "&" ~> bitwiseShiftGroup ^^ { case b => `&`(_, b) }
+  def lessThen: Parser[E => E] = "<" ~> bitwiseShiftGroup ^^ { case b => `<`(_, b) }
+  def lessThenOrEq: Parser[E => E] = "<=" ~> bitwiseShiftGroup ^^ { case b => `<=`(_, b) }
+  def greaterThen: Parser[E => E] = ">" ~> bitwiseShiftGroup ^^ { case b => `>`(_, b) }
+  def greaterThenOrEq: Parser[E => E] = ">=" ~> bitwiseShiftGroup ^^ { case b => `>=`(_, b) }
+
+  def isEq: Parser[E => E] = "==" ~> nonStrictConditionGroup ^^ { case b => `:==`(_, b) }
+  def isNotEq: Parser[E => E] = "!=" ~> nonStrictConditionGroup ^^ { case b => `:!=`(_, b) }
+
+  def bitwiseAnd: Parser[E => E] = "&" ~> strictConditionGroup ^^ { case b => `&`(_, b) }
   def bitwiseXor: Parser[E => E] = "^" ~> bitwiseAndGroup ^^ { case b => `^`(_, b) }
   def bitwiseOr: Parser[E => E] = "|" ~> bitwiseXorGroup ^^ { case b => `|`(_, b) }
   def logicalAnd: Parser[E => E] = "&&" ~> bitwiseOrGroup ^^ { case b => `&&`(_, b) }
   def logicalOr: Parser[E => E] = "||" ~> logicalAndGroup ^^ { case b => `||`(_, b) }
 
-
-  def isEq: Parser[E => E] = "==" ~> expression ^^ { case b => `:==`(_, b) }
-  def isNotEq: Parser[E => E] = "!=" ~> expression ^^ { case b => `:!=`(_, b) }
-  def lessThen: Parser[E => E] = "<" ~> expression ^^ { case b => `<`(_, b) }
-  def lessThenOrEq: Parser[E => E] = "<=" ~> expression ^^ { case b => `<=`(_, b) }
-  def greaterThen: Parser[E => E] = ">" ~> expression ^^ { case b => `>`(_, b) }
-  def greaterThenOrEq: Parser[E => E] = ">=" ~> expression ^^ { case b => `>=`(_, b) }
-
-
-  private def factor: Parser[E] = literalExpression | postfixGroup | variableExpression  | "(" ~> expression <~ ")"  | unaryGroup
+  private def factor: Parser[E] = literalExpression | variableExpression  | "(" ~> expression <~ ")"
   private def literalExpression: Parser[E] = scriptLiteral ^^ LiteralExpression
   private def variableExpression: Parser[E] = variable ^^ GerVar
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
+  private def indexGroup = operationPrecedence(factor,index)
+  private def postfixGroup =  postfixInc | postfixDec | indexGroup
+  private def unaryGroup = logicalNot | bitwiseNot | prefixInc | prefixDec | unaryNegate | unaryPlus | postfixGroup
+  private def multiplyGroup = operationPrecedence(unaryGroup,times | divide | remainder)
+  private def addGroup = operationPrecedence(multiplyGroup, plus | minus)
+  private def bitwiseShiftGroup = operationPrecedence(addGroup,bitwiseLeftShift | bitwiseRightShift)
 
   private def nonStrictConditionGroup = operationPrecedence(bitwiseShiftGroup,lessThen | lessThenOrEq | greaterThen | greaterThenOrEq)
   private def strictConditionGroup = operationPrecedence(nonStrictConditionGroup,isEq | isNotEq )
-  private def postfixGroup = postfixInc | postfixDec
   private def bitwiseAndGroup = operationPrecedence(strictConditionGroup,bitwiseAnd)
   private def bitwiseXorGroup = operationPrecedence(bitwiseAndGroup,bitwiseXor)
   private def bitwiseOrGroup = operationPrecedence(bitwiseXorGroup,bitwiseOr)
   private def logicalAndGroup = operationPrecedence(bitwiseOrGroup,logicalAnd)
   private def logicalOrGroup = operationPrecedence(logicalAndGroup,logicalOr)
-  private def unaryGroup = logicalNot | bitwiseNot | prefixInc | prefixDec | unaryNegate | unaryPlus
-  private def multiplyGroup = operationPrecedence(factor,times | divide | remainder)
-  private def addGroup = operationPrecedence(multiplyGroup, plus | minus)
-  private def bitwiseShiftGroup = operationPrecedence(addGroup,bitwiseLeftShift | bitwiseRightShift)
+
   private def operationPrecedence (before: Parser[E], func : Parser[E=>E]) = before ~ rep(func) ^^ foldExpression
 }
 
@@ -135,11 +141,13 @@ trait LiteralParser extends RegexParsers { self: KeywordParser =>
   override def skipWhitespace: Boolean = true
   def nullLiteral =  nullKeyword ^^ (_ => NullLiteral)
   def booleanLiteral = (trueKeyword| falseKeyword) ^^ toBooleanLiteral
+  def arrayLiteral = "[" ~> arrayItems
   def numericLiteral = notKeyword ~> (hexIntegerLiteral | decimalLiteral)
   def stringLiteral = notKeyword ~> (doubleQuoteStringLiteral | singleQuoteStringLiteral)
-  def scriptLiteral = nullLiteral | booleanLiteral | numericLiteral | stringLiteral
+  def scriptLiteral = nullLiteral | booleanLiteral | numericLiteral | stringLiteral | arrayLiteral
   def scriptLiterals = rep(scriptLiteral)
 
+  private def arrayItems :Parser[ArrayLiteral]= repsep(scriptLiteral,",") ~ "]" ^^ {case  x ~ _ => ArrayLiteral(Vector.empty[Literal] ++ x)}
   private def decimalLiteral= """-?(\d+(\.\d*)?|\d*\.\d+)([eE][+-]?\d+)?[fFdD]?""".r ^^ toDecimalLiteral
   private def hexIntegerLiteral = "0(x|X)[0-9a-fA-F]+".r ^^ toHexDecimalLiteral
   private def doubleQuoteStringLiteral = "\"" ~> "[^\"\n\t]*".r <~ "\"" ^^ toStringLiteral

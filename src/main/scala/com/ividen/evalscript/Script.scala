@@ -1,5 +1,7 @@
 package com.ividen.evalscript
 
+import scala.collection.mutable.ArrayBuffer
+
 sealed trait ScriptElement
 case class Script(block: `{}`)
 
@@ -11,6 +13,7 @@ sealed trait Expression extends ScriptElement
 case class LiteralExpression(literal: Literal) extends Expression
 case class GerVar(variable:Variable) extends Expression
 
+case class `[]`(l: Expression,r: Expression) extends Expression
 case class `:+`(l: Expression,r: Expression) extends Expression
 case class `:-`(l: Expression,r: Expression) extends Expression
 case class `/`(l: Expression,r: Expression) extends Expression
@@ -87,10 +90,12 @@ sealed trait Literal extends ExpressionElement {
   def >(l: Literal) : Literal = unsupportedOperation
   def >=(l: Literal) : Literal = unsupportedOperation
   def <=(l: Literal) : Literal = unsupportedOperation
+  def apply(l: Literal): Literal = unsupportedOperation
 
   def toBooleanLiteral: BooleanLiteral = unsupportedOperation
   def toStringLiteral : StringLiteral= unsupportedOperation
   def toDecimalLiteral: DecimalLiteral= unsupportedOperation
+  def toArrayLiteral: ArrayLiteral = unsupportedOperation
 
   private def unsupportedOperation[U]: U = throw new UnsupportedOperationException("Operation is not supported!")
 }
@@ -116,10 +121,12 @@ case class BooleanLiteral(value: Boolean) extends Literal{
   override def >(l: Literal) : Literal = BooleanLiteral(value > l.toBooleanLiteral.value)
   override def >=(l: Literal) : Literal = BooleanLiteral(value >= l.toBooleanLiteral.value)
   override def <=(l: Literal) : Literal = BooleanLiteral(value <= l.toBooleanLiteral.value)
+  override def apply(l: Literal): Literal =  this.toArrayLiteral.apply(l)
 
   override def toBooleanLiteral: BooleanLiteral = this
   override def toStringLiteral: StringLiteral = StringLiteral(value.toString)
   override def toDecimalLiteral: DecimalLiteral = DecimalLiteral(BigDecimal(if(value) 1 else 0))
+  override def toArrayLiteral: ArrayLiteral = ArrayLiteral(Vector(this))
 }
 
 case class DecimalLiteral(value: BigDecimal) extends Literal{
@@ -145,9 +152,11 @@ case class DecimalLiteral(value: BigDecimal) extends Literal{
   override def >(l: Literal) : Literal = BooleanLiteral(value > l.toDecimalLiteral.value)
   override def >=(l: Literal) : Literal = BooleanLiteral(value >= l.toDecimalLiteral.value)
   override def <=(l: Literal) : Literal = BooleanLiteral(value <= l.toDecimalLiteral.value)
+  override def apply(l: Literal): Literal =  this.toArrayLiteral.apply(l)
   override def toBooleanLiteral: BooleanLiteral = BooleanLiteral(if (value == 0) false else true)
   override def toStringLiteral: StringLiteral = StringLiteral(value.toString)
   override def toDecimalLiteral: DecimalLiteral = this
+  override def toArrayLiteral: ArrayLiteral = ArrayLiteral(Vector(this))
 }
 case class StringLiteral(value: String) extends Literal{
   type T = String
@@ -160,7 +169,19 @@ case class StringLiteral(value: String) extends Literal{
   override def >(l: Literal) : Literal = BooleanLiteral(value > l.toStringLiteral.value)
   override def >=(l: Literal) : Literal = BooleanLiteral(value >= l.toStringLiteral.value)
   override def <=(l: Literal) : Literal = BooleanLiteral(value <= l.toStringLiteral.value)
+  override def apply(l: Literal): Literal =  StringLiteral(String.valueOf(value.apply(l.toDecimalLiteral.value.toInt)))
   override def toBooleanLiteral: BooleanLiteral = BooleanLiteral(if (value == 0) false else true)
   override def toStringLiteral: StringLiteral = this
   override def toDecimalLiteral: DecimalLiteral = DecimalLiteral(BigDecimal(value))
+  override def toArrayLiteral: ArrayLiteral = ArrayLiteral(Vector(this))
 }
+
+
+case class ArrayLiteral(value: Vector[Literal]) extends Literal{
+  type T = Vector[Literal]
+
+  override def +(l: Literal): Literal = ArrayLiteral(this.value ++ l.toArrayLiteral.value)
+  override def apply(l: Literal): Literal =  value.apply(l.toDecimalLiteral.value.toInt)
+  override def toArrayLiteral: ArrayLiteral = this
+}
+
