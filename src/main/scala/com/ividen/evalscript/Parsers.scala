@@ -3,7 +3,7 @@ package com.ividen.evalscript
 import org.apache.commons.lang3.StringEscapeUtils
 import scala.util.parsing.combinator._
 
-trait EvalScriptParser extends IfElseParser with RepeatParser with SwitchParser with StatementParser with ExpressionParser with LiteralParser with IdentifierParser with AssignmentParser{
+trait EvalScriptParser extends IfElseParser with RepeatParser with SwitchParser with StatementParser with ExpressionParser with LiteralParser with IdentifierParser with AssignmentParser with KeywordParser{
   def script : Parser[Script] = statementList ^^ (Script(_))
 }
 
@@ -15,11 +15,12 @@ trait IfElseParser extends RegexParsers{ self: StatementParser with ExpressionPa
 }
 
 trait SwitchParser extends RegexParsers{self: StatementParser with ExpressionParser with LiteralParser =>
-  def switch_ = "switch" ~> condition ~ caseBlock ^^ { case e ~ x => `switch`(e, x._1.fold(List.empty[`case`])(x => x), x._2.flatMap(x => x)) }
-  def caseBlock = "{" ~> caseClauses.? ~ defaultClause.? <~ "}"
-  def caseClauses = caseClause.+
-  def caseClause = "case" ~ scriptLiteral ~ ":" ~ statementList.? ^^ {case _ ~ l ~ _ ~ b => `case`(l,b)}
-  def defaultClause = "default" ~> ":" ~> statementList.?
+
+  def switch_case = switch_ ~ rep(case_)~ default_ .? <~ "}" ^^ { case c~cases~d => `switch`(c, cases, d.flatMap(x=>x)) }
+  private def case_ = case_literal ~ statementList.? ^^ { case l ~ b => `case`(l, b) }
+  private def case_literal = "case " ~> expression <~ ":"
+  private def switch_ = "switch" ~> condition <~ "{"
+  private def default_ = "default" ~> ":" ~> statementList.?
   private def condition: Parser[Expression] = "(" ~> expression <~ ")"
 }
 
@@ -34,7 +35,7 @@ trait RepeatParser extends RegexParsers{ self: StatementParser with ExpressionPa
 
 trait StatementParser extends RegexParsers { self: ExpressionParser with AssignmentParser with IfElseParser with RepeatParser with SwitchParser=>
   def statementList = statements ^^ (`{}`(_))
-  def statement: Parser[ScriptElement] =  repeat | switch_ | if_else | assignments | expression | block
+  def statement: Parser[ScriptElement] =  repeat | switch_case | if_else | assignments | expression | block
   def statements =  statement*
   def block: Parser[ScriptElement]= ("{" ~> statements )<~"}" ^^ (`{}`(_))
 }
@@ -85,7 +86,7 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
 
   private def nonStrictConditionGroup = operationPrecedence(bitwiseShiftGroup,lessThen | lessThenOrEq | greaterThen | greaterThenOrEq)
-  private def strictConditionGroup = operationPrecedence(nonStrictConditionGroup,lessThen | lessThenOrEq | greaterThen | greaterThenOrEq)
+  private def strictConditionGroup = operationPrecedence(nonStrictConditionGroup,isEq | isNotEq )
   private def postfixGroup = postfixInc | postfixDec
   private def bitwiseAndGroup = operationPrecedence(strictConditionGroup,bitwiseAnd)
   private def bitwiseXorGroup = operationPrecedence(bitwiseAndGroup,bitwiseXor)
@@ -126,13 +127,13 @@ trait AssignmentParser extends RegexParsers { self: ExpressionParser with Identi
   private def nullVar: Parser[`=`] = variable ^^ { case v => `=`(v, LiteralExpression(NullLiteral)) }
 }
 
-trait LiteralParser extends RegexParsers {
+trait LiteralParser extends RegexParsers { self: KeywordParser =>
   override def skipWhitespace: Boolean = true
   def nullLiteral =  "null" ^^ (_ => NullLiteral)
   def booleanLiteral = ("true" | "false") ^^ toBooleanLiteral
   def numericLiteral = hexIntegerLiteral | decimalLiteral
   def stringLiteral = doubleQuoteStringLiteral | singleQuoteStringLiteral
-  def scriptLiteral = nullLiteral | booleanLiteral | numericLiteral | stringLiteral
+  def scriptLiteral = notKeyword ~> (nullLiteral | booleanLiteral | numericLiteral | stringLiteral)
   def scriptLiterals = rep(scriptLiteral)
 
   private def decimalLiteral= """-?(\d+(\.\d*)?|\d*\.\d+)([eE][+-]?\d+)?[fFdD]?""".r ^^ toDecimalLiteral
@@ -145,46 +146,28 @@ trait LiteralParser extends RegexParsers {
   private def toBooleanLiteral(x: String) = BooleanLiteral(x.toBoolean)
 }
 
-trait IdentifierParser extends RegexParsers{
+trait IdentifierParser extends RegexParsers{self: KeywordParser =>
   type V = Variable
   val idName = "[a-zA-Z_]+([a-zA-Z0-9_])*".r
-  def variable: Parser[V] = globalVariable | localVariable
+  def variable: Parser[V] = notKeyword ~>(globalVariable | localVariable)
   def globalVariable: Parser[V] = "$" ~> idName ^^ (GlobalVairable(_))
   def localVariable: Parser[V] = idName ^^ (LocalVariable(_))
 }
 
-object Main extends EvalScriptParser {
 
-  def main(args: Array[String]) {
-    //    val v2 = """true false null 10 20 30 10.1 0x1987FA 0x30 1000000000000000000000000000000"""
-    val v2 ="10+10*10+20*30 - (10-1)/(1+2)"
+trait KeywordParser extends RegexParsers{
+  val ifKeyword = "if"
+  val elseKeyword  = "else"
+  val switchKeyword = "switch"
+  val forKeyword = "for"
+  val whileKeyword = "while"
+  val caseKeyword = "case"
+  val breakKeyword = "break"
+  val continueKeyword = "continue"
+  val defaultKeyword = "default"
+  val varKeyword = "var"
 
-    """
-      |val v1 = 1, v2 = 1
-      |
-      |if($purchaseCount <= 10){
-      |   v1 =
-      |   $multiplier = 10
-      |
-      |
-      |}elsed
-      |
-      |
-    """.stripMargin
-
-    //    val v2 = """0x1987FA"""
-    //    val v3 = """ 'Test "1"' "Test '2'""""
-
-    val all  = parseAll(script, v2)
-
-    val e1: Expression = null
-    val e2: Expression = null
-
-    println(all)
-    Interpreter.process(all.get,new GlobalContext())
-    //    println(parse(literal, v2))
-    //    println(parse(literal, v3))
-  }
+  def keyword = ifKeyword | elseKeyword | switchKeyword | caseKeyword | whileKeyword | forKeyword | breakKeyword | continueKeyword | defaultKeyword | varKeyword
+  def notKeyword = not(keyword)
 }
-
 

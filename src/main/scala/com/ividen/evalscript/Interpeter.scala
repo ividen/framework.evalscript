@@ -26,16 +26,24 @@ object Interpreter {
     }
 
     private def processSwitch(condition: Expression, cases: Seq[`case`], default: Option[`{}`]) ={
-//      val literal = processExpression(condition)
-//      val i = cases.iterator
-//        while(i.hasNext) {
-//          val next = i.next()
-//          if ((literal == next.l).toBooleanLiteral.value) {
-//            processNewBlock(next.b)
-//            while (i.hasNext) processNewBlock(i.next.b)  //todo aguzanov breack statement
-//          }
-//        }
-      println(condition,cases,default)
+      val literal = processExpression(condition)
+      @tailrec
+      def findCase(i: Iterator[`case`]): Boolean = {
+        if(i.hasNext){
+
+          val next = i.next()
+          if ((literal == processExpression(next.e)).toBooleanLiteral.value) {
+
+            next.b.foreach(processNewBlock)
+            while (i.hasNext) i.next.b.foreach(processNewBlock)
+            true
+          }else findCase(i)
+        }else{
+          false
+        }
+      }
+
+      if(!findCase(cases.iterator))default.foreach(processNewBlock)
     }
 
     private def declareVar(e: `=`) = localContext.newVar(e.l, processExpression(e.r))
@@ -175,27 +183,35 @@ object Main2 extends EvalScriptParser {
 //        |var switchVar = 100
 //        |$testSwitch = ""
 //        |
-//        |switch(switchVar){
-//        |  case 10 : $testSwitch += "& test 10"
-//        |  case 100: $testSwitch += "& test 100"
-//        |  case 200: $testSwitch += "& test 200"
-//        |  case 300: $testSwitch += "& test 200"
-//        |  default: $testSwitch += "& default switch
-//        |}
 //        |
 //      """.stripMargin
 
+//    val s =
+//      """
+//        |$result = ""
+//        |
+//        |switch($purchaseAmount) {
+//        |  case 10: $result += "& =10"
+//        |  case 20: {
+//        |     for(var i = 0; i<100;i++)
+//        |
+//        |     $result += " & 20"
+//        |  }
+//        |  case 100: $result += "& =100"
+//        |  case 200: $result += "& =200"
+//        |  case 300: $result += "& =300"
+//        |  default: $result += "& default"
+//        |}
+//        |
+//      """.stripMargin
     val s =
       """
         |
-        |var switchVar = 100
-        |$testSwitch = ""
+        |var j=0
         |
-        |switch(switchVar){
-        |  case 10 : {$testSwitch += "& test 10"}
-        |  case 100: {$testSwitch += "& test 100"}
-        |  case 200: {$testSwitch += "& test 200"}
-        |  case 300: {$testSwitch += "& test 200"}
+        |$result = ""
+        |for(var i = 0;i<100;i ++){
+        |  $result += '_'
         |}
         |
       """.stripMargin
@@ -207,7 +223,7 @@ object Main2 extends EvalScriptParser {
 
     val res = parseAll(script, s).get
     println(res)
-    val context = new GlobalContext(Map[String, Any]("purchaseAmount" -> 1180))
+    val context = new GlobalContext(Map[String, Any]("purchaseAmount" -> 20))
     for(i <- 1 to 1)
     Interpreter.process(res, context)
 
