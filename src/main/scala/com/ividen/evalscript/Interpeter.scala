@@ -5,23 +5,42 @@ import scala.collection.mutable
 
 object Interpreter {
 
+  private[Interpreter] class Breakable{
+    var markBreak = false
+    var markContinue = false
+    
+    override def toString = s"Breakable($markBreak,$markContinue)"
+  }
+
   class ScriptExecution(script: Script, globalContext: GlobalContext) {
     def process = new BlockExecution(script.block, globalContext).process
   }
 
-  class BlockExecution(block: `{}`, globalContext: GlobalContext, rootLocalContext: Option[LocalContext] = None) {
+  class BlockExecution(execBlock: `{}`, globalContext: GlobalContext, rootLocalContext: Option[LocalContext] = None, breakable: Option[Breakable] = None) {
     val localContext = LocalContext(rootLocalContext)
 
-    def process = block.items.foreach(processElement)
+    def process = for (e <- execBlock.items if !broken) processElement(e)
+    private def break = breakable.foreach(x => x.markBreak = true)
+    private def continue = breakable.foreach(x => {
+      x.markBreak = false; x.markContinue = false
+    })
+    private def breakContinue = breakable.foreach(x => {
+      x.markBreak = true; x.markContinue = true
+    })
+    private def broken = breakable.fold(false)(_.markBreak)
+    private def continued = breakable.fold(false)(_.markContinue)
+
 
     private def processElement(e: ScriptElement): Unit = e match {
       case exp: Expression => processExpression(exp)
       case DeclareVars(l) => l.foreach(declareVar)
       case assignment: `=` => processAssignment(assignment)
       case `if else`(i, e) => processIfElse(i, e)
-      case `while do`(e, b) => processWhileDo(e, b)  //todo barboza check break
-      case `do while`(e, b) => processDoWhile(e, b)  //todo barboza check break
-      case `switch`(e,c,d) => processSwitch(e,c,d)
+      case `while do`(e, b,p) => processWhileDo(e, b,p)
+      case `do while`(e, b) => processDoWhile(e, b)
+      case `switch`(e, c, d) => processSwitch(e, c, d)
+      case _: `break` => this.break
+      case _: `continue` => this.breakContinue
       case b: `{}` => processNewBlock(b)
     }
 
@@ -30,12 +49,11 @@ object Interpreter {
       @tailrec
       def findCase(i: Iterator[`case`]): Boolean = {
         if(i.hasNext){
-
           val next = i.next()
           if ((literal == processExpression(next.e)).toBooleanLiteral.value) {
-
-            next.b.foreach(processNewBlock)
-            while (i.hasNext) i.next.b.foreach(processNewBlock)
+            val breakable = new Breakable
+            next.b.foreach(x =>new BlockExecution(x, globalContext, Some(localContext), Some(breakable)).process)
+            while (!breakable.markBreak && i.hasNext) i.next.b.foreach(x =>new BlockExecution(x, globalContext, Some(localContext), Some(breakable)).process)
             true
           }else findCase(i)
         }else{
@@ -43,16 +61,32 @@ object Interpreter {
         }
       }
 
-      if(!findCase(cases.iterator))default.foreach(processNewBlock)
+      if(!findCase(cases.iterator))default.foreach(x =>processNewBlock(x))
     }
 
     private def declareVar(e: `=`) = localContext.newVar(e.l, processExpression(e.r))
-    private def processNewBlock(b: `{}`) = new BlockExecution(b, globalContext, Some(localContext)).process
+    private def processNewBlock(b: `{}`) = new BlockExecution(b, globalContext, Some(localContext), breakable).process
     private def processIfElse(_if: `if`, _else: Seq[`else`]) = if (checkIf(_if)) processNewBlock(_if.block) else _else.find(checkElse).foreach(x => processNewBlock(x.block))
     private def checkIf(_if: `if`): Boolean = processCondition(_if.c)
     private def checkElse(_else: `else`): Boolean = _else.c.fold(true)(c => processCondition(c))
-    private def processWhileDo(check: Expression, block: `{}`): Unit = while (processCondition(check)) processNewBlock(block)
-    private def processDoWhile(check: Expression, block: `{}`): Unit = do processNewBlock(block) while (processCondition(check))
+    private def processWhileDo(check: Expression, block: `{}`, postFix: Option[ScriptElement]) = workWhileDo(check,new BlockExecution(block, globalContext, Some(localContext),Some(new Breakable)),postFix)
+    private def processDoWhile(check: Expression, block: `{}`) = workWhileDo(check,new BlockExecution(block, globalContext, Some(localContext),Some(new Breakable)),None,true)
+
+    @tailrec
+    private def workWhileDo(check: Expression,b: BlockExecution, postFix: Option[ScriptElement],firstCheckSkip : Boolean = false): Unit =
+      if(firstCheckSkip || processCondition(check)){
+        if(b.broken) {
+          if (b.continued) {
+            b.continue
+            workWhileDo(check,b,postFix)
+          }
+        }else{
+          b.process
+          postFix.foreach(processElement)
+          workWhileDo(check,b,postFix)
+        }
+      }
+
     private def processCondition(c: Expression): Boolean = processExpression(c) match {
       case DecimalLiteral(x) if x != 0 => true
       case StringLiteral(x) if !x.isEmpty => true
@@ -132,54 +166,74 @@ case class LocalContext(parent: Option[LocalContext] = None) {
 object Main2 extends EvalScriptParser {
   def main(args: Array[String]) {
 
-    val s =
+//    val s =
+//      """
+//        |
+//        |
+//        |if($purchaseAmount<100) $multiplier = 1
+//        |else($purchaseAmount<200) $multiplier = 2
+//        |else($purchaseAmount<300) $multiplier = 3
+//        |else($purchaseAmount<400) $multiplier = 4
+//        |else($purchaseAmount<500) $multiplier = 5
+//        |else($purchaseAmount<600) $multiplier = 6
+//        |else($purchaseAmount<700) $multiplier = 7
+//        |else($purchaseAmount<800) $multiplier = 8
+//        |else($purchaseAmount<900) $multiplier = 9
+//        |else($purchaseAmount<1000) $multiplier = 10
+//        |else($purchaseAmount<1100) $multiplier = 11
+//        |else($purchaseAmount<1200) $multiplier = 12
+//        |else($purchaseAmount<1300) $multiplier = 13
+//        |else($purchaseAmount<1400) $multiplier = 14
+//        |else($purchaseAmount<1500) $multiplier = 15
+//        |else($purchaseAmount<1600) $multiplier = 16
+//        |else $multiplier = 17
+//        |
+//        |$amount  = 100 * $multiplier
+//        |
+//        |if(true) $its_true = "YES"
+//        |
+//        |$iterationCount = 0
+//        |while($amount>100){
+//        |  $amount -=1
+//        |  $iterationCount++
+//        |}
+//        |
+//        |var i =  $iterationCount
+//        |$iteractionCount2 = 0
+//        |while(i>0){
+//        |  $amount++
+//        |  $iteractionCount2 ++
+//        |  i--
+//        |}
+//        |
+//        |$amount2 = 0
+//        |for(j = 0; j<100 ;j++){
+//        |  for(i =0 ; i <100 ; i++){
+//        |     $amount  += i
+//        |     $amount2 += j
+//        |  }
+//        |}
+//        |
+//        |$result = ""
+//        |
+//        |switch($purchaseAmount) {
+//        |  case 10: $result += "& =10"
+//        |  case 20: {
+//        |     for(var i = 0; i<10;i++) $result +='_'
+//        |
+//        |     $result += " & 20"
+//        |  }
+//        |  case 100: $result += "& =100"
+//        |  case 200: $result += "& =200"
+//        |  case 300: $result += "& =300"
+//        |  default: $result += "& default"
+//        |}
+//
+//        |
+//        |
+//      """.stripMargin
+     val s =
       """
-        |
-        |
-        |if($purchaseAmount<100) $multiplier = 1
-        |else($purchaseAmount<200) $multiplier = 2
-        |else($purchaseAmount<300) $multiplier = 3
-        |else($purchaseAmount<400) $multiplier = 4
-        |else($purchaseAmount<500) $multiplier = 5
-        |else($purchaseAmount<600) $multiplier = 6
-        |else($purchaseAmount<700) $multiplier = 7
-        |else($purchaseAmount<800) $multiplier = 8
-        |else($purchaseAmount<900) $multiplier = 9
-        |else($purchaseAmount<1000) $multiplier = 10
-        |else($purchaseAmount<1100) $multiplier = 11
-        |else($purchaseAmount<1200) $multiplier = 12
-        |else($purchaseAmount<1300) $multiplier = 13
-        |else($purchaseAmount<1400) $multiplier = 14
-        |else($purchaseAmount<1500) $multiplier = 15
-        |else($purchaseAmount<1600) $multiplier = 16
-        |else $multiplier = 17
-        |
-        |$amount  = 100 * $multiplier
-        |
-        |if(true) $its_true = "YES"
-        |
-        |$iterationCount = 0
-        |while($amount>100){
-        |  $amount -=1
-        |  $iterationCount++
-        |}
-        |
-        |var i =  $iterationCount
-        |$iteractionCount2 = 0
-        |while(i>0){
-        |  $amount++
-        |  $iteractionCount2 ++
-        |  i--
-        |}
-        |
-        |$amount2 = 0
-        |for(j = 0; j<100 ;j++){
-        |  for(i =0 ; i <100 ; i++){
-        |     $amount  += i
-        |     $amount2 += j
-        |  }
-        |}
-        |
         |$result = ""
         |
         |switch($purchaseAmount) {
@@ -188,13 +242,13 @@ object Main2 extends EvalScriptParser {
         |     for(var i = 0; i<10;i++) $result +='_'
         |
         |     $result += " & 20"
+        |     break
         |  }
-        |  case 100: $result += "& =100"
-        |  case 200: $result += "& =200"
-        |  case 300: $result += "& =300"
-        |  default: $result += "& default"
+        |  case 100: $result += "& =100" break
+        |  case 200: $result += "& =200" break
+        |  case 300: $result += "& =300" break
+        |  default: $result += "& default" break
         |}
-
         |
         |
       """.stripMargin
@@ -206,10 +260,8 @@ object Main2 extends EvalScriptParser {
 
     val res = parseAll(script, s).get
     println(res)
-    val context = new GlobalContext(Map[String, Any]("purchaseAmount" -> 20))
+    val context = new GlobalContext(Map[String, Any]("purchaseAmount" -> 100))
 
-    Interpreter.process(res, context)
-    for(j <- (1 to 1))
     Interpreter.process(res, context)
 
     println(context.vars)

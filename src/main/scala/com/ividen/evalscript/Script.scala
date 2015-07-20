@@ -40,16 +40,17 @@ case class `>`(l: Expression, r: Expression) extends Expression
 case class `>=`(l: Expression, r: Expression) extends Expression
 case class `<=`(l: Expression, r: Expression) extends Expression
 
-
 case class `if`(c : Expression, block: `{}`)
 case class `else`(c: Option[Expression],block:`{}`)
 case class `if else`(i: `if`, e: Seq[`else`]) extends ScriptElement
 
-case class `while do`(e: Expression, block: `{}`) extends ScriptElement
+case class `while do`(e: Expression, block: `{}`, postFix: Option[ScriptElement] = None) extends ScriptElement
 case class `do while`(e: Expression, block: `{}`) extends ScriptElement
-case class `for`(init: Expression, check: Expression, postfix: Expression, block: `{}`) extends ScriptElement
+case class `for`(init: ScriptElement, check: Expression, postfix: Expression, block: `{}`) extends ScriptElement
 case class `case`(e: Expression, b: Option[`{}`])
 case class `switch`(e: Expression, cases: Seq[`case`], default: Option[`{}`]) extends ScriptElement
+class `break` extends ScriptElement
+class `continue` extends ScriptElement
 
 sealed trait ExpressionElement extends ScriptElement
 

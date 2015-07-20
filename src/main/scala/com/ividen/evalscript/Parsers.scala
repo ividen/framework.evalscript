@@ -3,7 +3,7 @@ package com.ividen.evalscript
 import org.apache.commons.lang3.StringEscapeUtils
 import scala.util.parsing.combinator._
 
-trait EvalScriptParser extends IfElseParser with RepeatParser with SwitchParser with StatementParser with ExpressionParser with LiteralParser with IdentifierParser with AssignmentParser with KeywordParser{
+trait EvalScriptParser extends IfElseParser with RepeatParser with SwitchParser  with BreakParser with StatementParser with ExpressionParser with LiteralParser with IdentifierParser with AssignmentParser with KeywordParser{
   def script : Parser[Script] = statementList ^^ (Script(_))
 }
 
@@ -15,7 +15,6 @@ trait IfElseParser extends RegexParsers{ self: StatementParser with ExpressionPa
 }
 
 trait SwitchParser extends RegexParsers{self: StatementParser with ExpressionParser with LiteralParser with KeywordParser =>
-
   def switch_case = switch_ ~ rep(case_)~ default_ .? <~ "}" ^^ { case c~cases~d => `switch`(c, cases, d.flatMap(x=>x)) }
   private def case_ = case_literal ~ statementList.? ^^ { case l ~ b => `case`(l, b) }
   private def case_literal =  caseKeyword ~> expression <~ ":"
@@ -26,16 +25,21 @@ trait SwitchParser extends RegexParsers{self: StatementParser with ExpressionPar
 
 trait RepeatParser extends RegexParsers{ self: StatementParser with ExpressionParser with AssignmentParser with KeywordParser =>
   def repeat = for_ | doWhile | whileDo
-  def for_ : Parser[ScriptElement] = forKeyword~ "(" ~ assignments ~ ";" ~ expression ~ ";" ~ expression ~ ")" ~ statement ^^ { case  _ ~ _~  init ~ _ ~ check ~ _ ~ postfix ~ _ ~ statement => `{}`(Seq(init, `while do`(check, `{}`(Seq(statement, postfix)))))}
+  def for_ : Parser[ScriptElement] = forKeyword~ "(" ~ assignments ~ ";" ~ expression ~ ";" ~ expression ~ ")" ~ statement ^^ { case  _ ~ _~  init ~ _ ~ check ~ _ ~ postfix ~ _ ~ statement => `{}`(Seq(init, `while do`(check, `{}`(Seq(statement)),Some(postfix))))}
   def doWhile: Parser[ScriptElement] = doStatement ~ whileKeyword~ condition ^^ { case s ~ _ ~ c => `do while`(c, `{}`(Seq(s))) }
   def whileDo: Parser[ScriptElement] = whileKeyword~> condition ~ statement ^^ { case c ~ s => `while do`(c, `{}`(Seq(s))) }
   private def doStatement = doKeyword ~> statement
   private def condition: Parser[Expression] = "(" ~> expression <~ ")"
 }
 
-trait StatementParser extends RegexParsers { self: ExpressionParser with AssignmentParser with IfElseParser with RepeatParser with SwitchParser=>
+trait BreakParser extends RegexParsers{self: KeywordParser =>
+  def break: Parser[`break`] = breakKeyword^^ {_ => new `break`}
+  def continue: Parser[`continue`] = continueKeyword ^^ {_ => new `continue`}
+}
+
+trait StatementParser extends RegexParsers { self: ExpressionParser with AssignmentParser with IfElseParser with RepeatParser with SwitchParser with BreakParser=>
   def statementList = statements ^^ (`{}`(_))
-  def statement: Parser[ScriptElement] =  repeat | switch_case | if_else | assignments | expression | block
+  def statement: Parser[ScriptElement] =  break | continue | repeat | switch_case | if_else | assignments | expression | block
   def statements =  statement*
   def block: Parser[ScriptElement]= ("{" ~> statements )<~"}" ^^ (`{}`(_))
 }
@@ -77,7 +81,7 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
   def lessThen: Parser[E => E] = "<" ~> expression ^^ { case b => `<`(_, b) }
   def lessThenOrEq: Parser[E => E] = "<=" ~> expression ^^ { case b => `<=`(_, b) }
   def greaterThen: Parser[E => E] = ">" ~> expression ^^ { case b => `>`(_, b) }
-  def greaterThenOrEq: Parser[E => E] = ">=" ~> expression ^^ { case b => `>`(_, b) }
+  def greaterThenOrEq: Parser[E => E] = ">=" ~> expression ^^ { case b => `>=`(_, b) }
 
 
   private def factor: Parser[E] = literalExpression | postfixGroup | variableExpression  | "(" ~> expression <~ ")"  | unaryGroup
