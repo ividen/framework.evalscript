@@ -60,7 +60,6 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
 
   def expression: Parser[E] = logicalOrGroup
 
-
   def postfixInc: Parser[E] = variable <~ "++" ^^ `:++`
   def postfixDec: Parser[E] = variable <~ "--" ^^ `:--`
 
@@ -72,7 +71,6 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
   def prefixDec: Parser[E] = "--" ~> variable ^^ `--:`
   def unaryNegate: Parser[E] = "-" ~> indexGroup ^^ `-:`
   def unaryPlus: Parser[E] = "+" ~> indexGroup ^^ `+:`
-
 
   def times: Parser[E => E] = "*" ~> unaryGroup ^^ { case b => `*`(_, b) }
   def divide: Parser[E => E] = "/" ~> unaryGroup ^^ { case b => `/`(_, b) }
@@ -115,7 +113,6 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
   private def bitwiseOrGroup = operationPrecedence(bitwiseXorGroup,bitwiseOr)
   private def logicalAndGroup = operationPrecedence(bitwiseOrGroup,logicalAnd)
   private def logicalOrGroup = operationPrecedence(logicalAndGroup,logicalOr)
-
   private def operationPrecedence (before: Parser[E], func : Parser[E=>E]) = before ~ rep(func) ^^ foldExpression
 }
 
@@ -174,7 +171,6 @@ trait IdentifierParser extends RegexParsers{self: KeywordParser =>
   def globalVariable: Parser[V] = "$" ~> idName ^^ (GlobalVairable(_))
   def localVariable: Parser[V] = idName ^^ (LocalVariable(_))
 }
-
 
 trait KeywordParser extends RegexParsers{
   val ifKeyword = "if"
