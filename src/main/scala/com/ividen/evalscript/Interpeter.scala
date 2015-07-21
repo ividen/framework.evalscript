@@ -125,6 +125,7 @@ object Interpreter {
       case `<=`(l, r) => processExpression(l) <= processExpression(r)
       case GerVar(v: LocalVariable) => localContext(v)
       case GerVar(v: GlobalVairable) => globalContext(v)
+      case `call`(n,a) => FunctionInvoker.invoke(n,a.map(processExpression))
     }
 
     private def processAssignment(assignment: `=`) = (assignment.l, assignment.r) match {
@@ -164,15 +165,15 @@ case class LocalContext(parent: Option[LocalContext] = None) {
   protected def findContext(v: LocalVariable): Option[LocalContext] = if (vars.contains(v.name)) Some(this) else parent.fold[Option[LocalContext]](None)(c => c.findContext(v))
 }
 
-object Main2 extends EvalScriptParser {
+object Main2  {
   def main(args: Array[String]) {
 
     val s =
       """
-        |val array = [1,2,3,4,5,6,7]
-        |$result_array = array
-        |$result_elem = array[6] + 100/10
-        |$test_string = "aray"[0]
+        |var array = [1,2,3,4,5,6,7]
+        |$len = len(array)
+        |var test_string = "111111_22222"
+        |$substring = str(decimal(substring(test_string,7,len(test_string)))/11111 + 2*4)
         |
       """.stripMargin
 
@@ -181,15 +182,13 @@ object Main2 extends EvalScriptParser {
 
     val i = 1
 
-
-    val res = parseAll(script, s).get
+    val res =  EvalScriptParser.load(s)
     println(res)
     val context = new GlobalContext(Map[String, Any]("purchaseAmount" -> 100))
 
     Interpreter.process(res, context)
 
     println(context.vars)
-
 
 
   }

@@ -1,7 +1,5 @@
 package com.ividen.evalscript
 
-import scala.collection.mutable.ArrayBuffer
-
 sealed trait ScriptElement
 case class Script(block: `{}`)
 
@@ -12,7 +10,7 @@ case class `=`(l:Variable,r: Expression) extends ScriptElement
 sealed trait Expression extends ScriptElement
 case class LiteralExpression(literal: Literal) extends Expression
 case class GerVar(variable:Variable) extends Expression
-
+case class `call`(name: String, args: Seq[Expression]) extends Expression
 case class `[]`(l: Expression,r: Expression) extends Expression
 case class `:+`(l: Expression,r: Expression) extends Expression
 case class `:-`(l: Expression,r: Expression) extends Expression
@@ -61,6 +59,7 @@ sealed trait Variable extends ExpressionElement{
   def name : String
 }
 case class LocalVariable(name: String) extends Variable
+
 case class GlobalVairable(name: String) extends Variable
 
 sealed trait Literal extends ExpressionElement {
@@ -100,7 +99,7 @@ sealed trait Literal extends ExpressionElement {
   private def unsupportedOperation[U]: U = throw new UnsupportedOperationException("Operation is not supported!")
 }
 
-object NullLiteral extends Literal{
+object NullLiteral extends Literal {
   type T = Unit
 
   override def value: Unit = {}
@@ -129,7 +128,7 @@ case class BooleanLiteral(value: Boolean) extends Literal{
   override def toArrayLiteral: ArrayLiteral = ArrayLiteral(Vector(this))
 }
 
-case class DecimalLiteral(value: BigDecimal) extends Literal{
+case class DecimalLiteral(value: BigDecimal) extends Literal {
   type T = BigDecimal
 
   override def +(l: Literal): Literal = DecimalLiteral(this.value + l.toDecimalLiteral.value)
@@ -177,11 +176,10 @@ case class StringLiteral(value: String) extends Literal{
 }
 
 
-case class ArrayLiteral(value: Vector[Literal]) extends Literal{
+case class ArrayLiteral(value: Vector[Literal]) extends Literal {
   type T = Vector[Literal]
 
   override def +(l: Literal): Literal = ArrayLiteral(this.value ++ l.toArrayLiteral.value)
-  override def apply(l: Literal): Literal =  value.apply(l.toDecimalLiteral.value.toInt)
+  override def apply(l: Literal): Literal = value.apply(l.toDecimalLiteral.value.toInt)
   override def toArrayLiteral: ArrayLiteral = this
 }
-

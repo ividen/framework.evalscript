@@ -2,9 +2,20 @@ package com.ividen.evalscript
 
 import org.apache.commons.lang3.StringEscapeUtils
 import scala.util.parsing.combinator._
+import scala.reflect.runtime._
 
-trait EvalScriptParser extends IfElseParser with RepeatParser with SwitchParser  with BreakParser with StatementParser with ExpressionParser with LiteralParser with IdentifierParser with AssignmentParser with KeywordParser{
+object EvalScriptParser extends IfElseParser with RepeatParser with SwitchParser  with BreakParser
+                           with StatementParser with ExpressionParser with LiteralParser with IdentifierParser
+                           with AssignmentParser with KeywordParser with FunctionParser{
   def script : Parser[Script] = statementList ^^ (Script(_))
+
+  def load(s: String) : Script = parseAll(script,s).get
+}
+
+trait FunctionParser extends RegexParsers{self: ExpressionParser with IdentifierParser =>
+  // todo aguzanov how to return parser error
+  def function: Parser[Expression] = idName ~ arguments ^^ { case n ~ a => if (FunctionInvoker.hasMethod(n)) `call`(n, a) else throw new IllegalStateException(s"Unknown function $n with arguments: $a") }
+  private def arguments = "("~> repsep(expression,",") <~")"
 }
 
 trait IfElseParser extends RegexParsers{ self: StatementParser with ExpressionParser =>
@@ -44,7 +55,7 @@ trait StatementParser extends RegexParsers { self: ExpressionParser with Assignm
   def block: Parser[ScriptElement]= ("{" ~> statements )<~"}" ^^ (`{}`(_))
 }
 
-trait ExpressionParser extends RegexParsers {self: LiteralParser with IdentifierParser =>
+trait ExpressionParser extends RegexParsers {self: LiteralParser with IdentifierParser with FunctionParser=>
   type E = Expression
 
   def expression: Parser[E] = logicalOrGroup
@@ -54,7 +65,6 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
   def postfixDec: Parser[E] = variable <~ "--" ^^ `:--`
 
   def index: Parser[E=>E] =  "[" ~ factor ~ "]" ^^ { case  _ ~ r ~ _  => `[]`(_, r) }
-
 
   def logicalNot: Parser[E] = "!" ~> indexGroup ^^ `!:`
   def bitwiseNot: Parser[E] = "~" ~> indexGroup ^^ `~:`
@@ -88,7 +98,7 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
   def logicalAnd: Parser[E => E] = "&&" ~> bitwiseOrGroup ^^ { case b => `&&`(_, b) }
   def logicalOr: Parser[E => E] = "||" ~> logicalAndGroup ^^ { case b => `||`(_, b) }
 
-  private def factor: Parser[E] = literalExpression | variableExpression  | "(" ~> expression <~ ")"
+  private def factor: Parser[E] = function | literalExpression | variableExpression | "(" ~> expression <~ ")"
   private def literalExpression: Parser[E] = scriptLiteral ^^ LiteralExpression
   private def variableExpression: Parser[E] = variable ^^ GerVar
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
@@ -98,7 +108,6 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
   private def multiplyGroup = operationPrecedence(unaryGroup,times | divide | remainder)
   private def addGroup = operationPrecedence(multiplyGroup, plus | minus)
   private def bitwiseShiftGroup = operationPrecedence(addGroup,bitwiseLeftShift | bitwiseRightShift)
-
   private def nonStrictConditionGroup = operationPrecedence(bitwiseShiftGroup,lessThen | lessThenOrEq | greaterThen | greaterThenOrEq)
   private def strictConditionGroup = operationPrecedence(nonStrictConditionGroup,isEq | isNotEq )
   private def bitwiseAndGroup = operationPrecedence(strictConditionGroup,bitwiseAnd)
