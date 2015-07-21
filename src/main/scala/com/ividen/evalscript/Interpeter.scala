@@ -173,7 +173,7 @@ object Main2  {
         |var array = [1,2,3,4,5,6,7]
         |$len = len(array)
         |var test_string = "111111_22222"
-        |$substring = str(decimal(substring(test_string,7,len(test_string)))/11111 + 2*4)
+        |$substring = str(decimal(substring(test_string,7,len(test_string)))/11111 + 2*4) + "  pi=" + Pi() + ", exp=" + E()
         |
       """.stripMargin
 
@@ -182,13 +182,16 @@ object Main2  {
 
     val i = 1
 
-    val res =  EvalScriptParser.load(s)
+    val res = EvalScriptParser.load(s)
     println(res)
-    val context = new GlobalContext(Map[String, Any]("purchaseAmount" -> 100))
 
-    Interpreter.process(res, context)
 
-    println(context.vars)
+    for (i <- (1 to 100)) {
+      val ts = System.currentTimeMillis()
+      val context = new GlobalContext(Map[String, Any]("purchaseAmount" -> 100))
+      Interpreter.process(res, context)
+      println(System.currentTimeMillis() - ts)
+    }
 
 
   }
