@@ -140,7 +140,8 @@ object Interpreter {
 
 class GlobalContext(initVars: Map[String, _] = Map.empty) {
   var vars = mutable.Map[String, Literal]() ++ initVars.map(e => e._1 -> valToLiteral(e._2))
-  def apply(v: GlobalVairable): Literal = vars.getOrElse(v.name, NullLiteral)
+  def apply(v: GlobalVairable): Literal = apply(v.name)
+  def apply(n: String) = vars.getOrElse(n, NullLiteral)
   def set(v: GlobalVairable, value: Literal) = vars.put(v.name, value)
   private def valToLiteral(value: Any) = value match {
     case s: String => StringLiteral(s)

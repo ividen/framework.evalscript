@@ -1,5 +1,7 @@
 package com.ividen.evalscript
 
+import org.slf4j.LoggerFactory
+
 trait Functions{
   def bool(literal: Literal): BooleanLiteral = literal.toBooleanLiteral
   def str(literal: Literal): StringLiteral = literal.toStringLiteral
@@ -49,9 +51,20 @@ trait Functions{
   def tanh(x : Literal) : DecimalLiteral= DecimalLiteral(math.tanh(x.toDecimalLiteral.value.toDouble))
   def hypot(x : Literal, y : DecimalLiteral) : DecimalLiteral= DecimalLiteral(math.hypot(x.toDecimalLiteral.value.toDouble,y.toDecimalLiteral.value.toDouble))
   def ulp(x : Literal) : DecimalLiteral= DecimalLiteral(math.ulp(x.toDecimalLiteral.value.toDouble))
+
+  def debug(x: Literal)
+  def warn(x:Literal)
+  def info(x:Literal)
+  def error(x:Literal)
 }
 
 object Functions extends Functions{
+  val logger = LoggerFactory.getLogger("com.ividen.evalscript")
+
+  override def debug(x: Literal) = logger.debug(x.toStringLiteral.value)
+  override def warn(x: Literal) = logger.warn(x.toStringLiteral.value)
+  override def info(x: Literal) = logger.info(x.toStringLiteral.value)
+  override def error(x: Literal) = logger.error(x.toStringLiteral.value)
 }
 
 object FunctionInvoker{
