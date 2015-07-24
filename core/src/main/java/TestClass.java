@@ -9,17 +9,14 @@ public class TestClass extends CompiledScript {
     static final Literal v1 = new DecimalLiteral(BigDecimal.valueOf(10));
     static final Literal v2 = new DecimalLiteral(BigDecimal.valueOf(20));
 
+    public Literal multiplier;
+
     public TestClass(GlobalContext globals) {
         super(globals);
+        multiplier = NullLiteral$.MODULE$;
     }
     @Override
     public void execute() {
-        setGlobal("v",v1);
-        if(checkCondition(getGlobal("v"))) setGlobal("v",v2);
-
-
-
-//
 
     }
 

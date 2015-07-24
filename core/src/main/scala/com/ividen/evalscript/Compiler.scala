@@ -55,14 +55,15 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private val fields: java.util.List[FieldNode] = cn.fields.asInstanceOf[java.util.List[FieldNode]]
   private var fieldNumber: Int = 0
   private val literals: collection.mutable.Map[Literal, String] = new collection.mutable.HashMap[Literal, String]()
+  private val globals: collection.mutable.Set[String] = new collection.mutable.HashSet[String]()
 
   def compile: Class[CompiledScript] = {
     initClassName
-    generateConstructor
     methods.add(exec)
     b.items.foreach(processElement)
     addIns(new InsnNode(RETURN))
     initStaticVars
+    generateConstructor
 
     val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
     cn.accept(cw)
@@ -95,7 +96,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private def addIns(m: MethodNode, il: AbstractInsnNode*) = il.foreach(m.instructions.add)
 
   private def initDecimal(m: MethodNode, n: String, v: BigDecimal): Unit = addIns(m, new TypeInsnNode(NEW, typeString[DecimalLiteral]), new InsnNode(DUP)
-    , new LdcInsnNode(v.doubleValue()), new MethodInsnNode(INVOKESTATIC, typeString[BigDecimal], "valueOf", s"(D)${typeSignature[BigDecimal]}")
+    , new LdcInsnNode(v.longValue()), new MethodInsnNode(INVOKESTATIC, typeString[BigDecimal], "long2bigDecimal", s"(J)${typeSignature[BigDecimal]}")
     , new MethodInsnNode(INVOKESPECIAL, typeString[DecimalLiteral], "<init>", s"(${typeSignature[BigDecimal]})V"), new FieldInsnNode(PUTSTATIC, cn.name, n, typeSignature[Literal]))
 
   private def initString(m: MethodNode, n: String, v: String): Unit = addIns(m, new TypeInsnNode(NEW, typeString[StringLiteral]), new InsnNode(DUP)
@@ -121,12 +122,19 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
 
   private def generateConstructor: Unit = {
     val constructor = new MethodNode(ACC_PUBLIC, "<init>", s"(${typeSignature[GlobalContext]})V", null, Array.empty)
-    constructor.visitVarInsn(ALOAD, 0)
-    constructor.visitVarInsn(ALOAD, 1)
-    constructor.visitMethodInsn(INVOKESPECIAL, typeString[CompiledScript], "<init>", s"(${typeSignature[GlobalContext]})V")
-    constructor.visitInsn(RETURN)
-    constructor.visitMaxs(1, 1)
-    constructor.visitEnd()
+    addIns(constructor,new VarInsnNode(ALOAD, 0))
+    addIns(constructor,new VarInsnNode (ALOAD, 1))
+    addIns(constructor,new MethodInsnNode(INVOKESPECIAL, typeString[CompiledScript], "<init>", s"(${typeSignature[GlobalContext]})V"))
+    for(g <- globals){
+      val node = new FieldNode(ACC_PUBLIC , g, typeSignature[Literal], null, null)
+      fields.add(node)
+//      addIns(constructor, new TypeInsnNode(NEW, typeString[StringLiteral]), new InsnNode(DUP)
+//        , new LdcInsnNode(), new MethodInsnNode(INVOKESPECIAL, typeString[StringLiteral], "<init>", s"(${typeSignature[String]})V")
+//        , new FieldInsnNode(PUTFIELD, cn.name, g, typeSignature[Literal]))
+
+    }
+
+    addIns(constructor,new InsnNode(RETURN))
     methods.add(constructor)
   }
 
@@ -195,7 +203,16 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
       case v: UnaryExpression => processExpression(v.r)
       case v: BinaryExpression => processExpression(v.l); processExpression(v.r); invokeOperator(v.getClass.asInstanceOf[Class[_ <: Expression]])
       //    case GerVar(v: LocalVariable) => localContext(v)
-      case GerVar(v: GlobalVairable) => addIns(new VarInsnNode(ALOAD, 0),new LdcInsnNode(v.name), new MethodInsnNode(INVOKEVIRTUAL,cn.name, "getGlobal", s"(${typeSignature[String]})${typeSignature[Literal]}"))
+      case GerVar(v: GlobalVairable) => {
+//        addIns(new VarInsnNode(ALOAD, 0),new LdcInsnNode(v.name), new MethodInsnNode(INVOKEVIRTUAL,cn.name, "getGlobal", s"(${typeSignature[String]})${typeSignature[Literal]}"))
+
+        if(!globals.contains(v.name)){
+          globals += v.name
+        }
+
+        addIns(new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, v.name, typeSignature[Literal]))
+
+      }
       case `call`(n, a) => {
         addIns(new FieldInsnNode(GETSTATIC, typeString[Functions] + "$", "MODULE$", s"L${typeString[Functions]}$$;"))
         a.reverse.foreach(processExpression)
@@ -210,7 +227,13 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
 
   private def processAssignment(assignment: `=`) = (assignment.l, assignment.r) match {
     //    case (v: LocalVariable, e) => localContext.set(v, processExpression(e))
-    case (g: GlobalVairable, e) => addIns(new VarInsnNode(ALOAD, 0),new LdcInsnNode(g.name)); processExpression(e); addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "setGlobal", s"(${typeSignature[String]}${typeSignature[Literal]})V"))
+    case (g: GlobalVairable, e) => {
+//      addIns(new VarInsnNode(ALOAD, 0), new LdcInsnNode(g.name))
+      addIns(new VarInsnNode(ALOAD, 0))
+      processExpression(e);
+//      addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "setGlobal", s"(${typeSignature[String]}${typeSignature[Literal]})V"))
+      addIns(new FieldInsnNode(PUTFIELD, cn.name, g.name, typeSignature[Literal]))
+    }
   }
 
   private def invokeOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, typeString[Literal], mapping.getOrElse(c, ""), s"(${typeSignature[Literal]})${typeSignature[Literal]}"))
