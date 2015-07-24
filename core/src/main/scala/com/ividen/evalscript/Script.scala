@@ -8,38 +8,44 @@ case class DeclareVars(items: Seq[`=`]) extends ScriptElement
 case class `=`(l:Variable,r: Expression) extends ScriptElement
 
 sealed trait Expression extends ScriptElement
+sealed trait BinaryExpression extends Expression{
+  def l: Expression
+  def r: Expression
+}
+sealed trait UnaryExpression extends Expression{
+  def r: Expression
+}
 case class LiteralExpression(literal: Literal) extends Expression
 case class GerVar(variable:Variable) extends Expression
 case class `call`(name: String, args: Seq[Expression]) extends Expression
-case class `[]`(l: Expression,r: Expression) extends Expression
-case class `:+`(l: Expression,r: Expression) extends Expression
-case class `:-`(l: Expression,r: Expression) extends Expression
-case class `/`(l: Expression,r: Expression) extends Expression
-case class `*`(l: Expression,r: Expression) extends Expression
-case class `%`(l: Expression,r: Expression) extends Expression
-case class `!:`(r: Expression) extends Expression
-case class `~:`(r: Expression) extends Expression
-case class `-:`(r: Expression) extends Expression
-case class `+:`(r: Expression) extends Expression
+case class `[]`( l: Expression,r: Expression) extends BinaryExpression
+case class `:+`( l: Expression, r: Expression) extends BinaryExpression
+case class `:-`(l: Expression,r: Expression) extends BinaryExpression
+case class `/`(l: Expression,r: Expression) extends BinaryExpression
+case class `*`(l: Expression,r: Expression) extends BinaryExpression
+case class `%`(l: Expression,r: Expression) extends BinaryExpression
+case class `!:`(r: Expression) extends UnaryExpression
+case class `~:`(r: Expression) extends UnaryExpression
+case class `-:`(r: Expression) extends UnaryExpression
+case class `+:`(r: Expression) extends UnaryExpression
+//todo aguzanov unary?binary
 case class `++:`(r: Variable) extends Expression
 case class `:++`(r: Variable) extends Expression
 case class `--:`(r: Variable) extends Expression
 case class `:--`(r: Variable) extends Expression
-case class `<<`(l: Expression,r : Expression) extends Expression
-case class `>>`(l: Expression,r : Expression) extends Expression
-case class `++`(l: Expression) extends Expression
-case class `--`(l: Expression) extends Expression
-case class `&`(l: Expression, r: Expression) extends Expression
-case class `^`(l: Expression, r: Expression) extends Expression
-case class `|`(l: Expression, r: Expression) extends Expression
-case class `&&`(l: Expression,r: Expression) extends Expression
-case class `||`(l: Expression, r: Expression) extends Expression
-case class `:==`(l: Expression, r: Expression) extends Expression
-case class `:!=`(l: Expression, r: Expression) extends Expression
-case class `<`(l: Expression, r: Expression) extends Expression
-case class `>`(l: Expression, r: Expression) extends Expression
-case class `>=`(l: Expression, r: Expression) extends Expression
-case class `<=`(l: Expression, r: Expression) extends Expression
+case class `<<`(l: Expression,r : Expression) extends BinaryExpression
+case class `>>`(l: Expression,r : Expression) extends BinaryExpression
+case class `&`(l: Expression, r: Expression) extends BinaryExpression
+case class `^`(l: Expression, r: Expression) extends BinaryExpression
+case class `|`(l: Expression, r: Expression) extends BinaryExpression
+case class `&&`(l: Expression,r: Expression) extends BinaryExpression
+case class `||`(l: Expression, r: Expression) extends BinaryExpression
+case class `:==`(l: Expression, r: Expression) extends BinaryExpression
+case class `:!=`(l: Expression, r: Expression) extends BinaryExpression
+case class `<`(l: Expression, r: Expression) extends BinaryExpression
+case class `>`(l: Expression, r: Expression) extends BinaryExpression
+case class `>=`(l: Expression, r: Expression) extends BinaryExpression
+case class `<=`(l: Expression, r: Expression) extends BinaryExpression
 
 case class `if`(c : Expression, block: `{}`)
 case class `else`(c: Option[Expression],block:`{}`)
