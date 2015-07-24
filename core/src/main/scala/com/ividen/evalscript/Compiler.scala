@@ -7,8 +7,6 @@ import org.apache.commons.codec.binary.{Hex, Base64, StringUtils}
 import org.objectweb.asm.tree._
 import org.objectweb.asm.{MethodVisitor, ClassWriter}
 import org.objectweb.asm.Opcodes._
-import sun.org.mozilla.javascript.internal.ast.UnaryExpression
-
 import scala.annotation.tailrec
 import scala.collection
 import scala.collection.parallel.mutable
@@ -17,8 +15,16 @@ import scala.reflect.ClassTag
 
 abstract class CompiledScript(val globals: GlobalContext) {
   def execute
-}
 
+  protected def setGlobal(n: String, v: Literal) = globals.set(n, v)
+  protected def getGlobal(n: String): Literal = globals(n)
+  protected def checkCondition(l: Literal): Boolean = l match {
+    case DecimalLiteral(x) if x != 0 => true
+    case StringLiteral(x) if !x.isEmpty => true
+    case BooleanLiteral(x) if x => true
+    case _ => false
+  }
+}
 
 class DerivedCompiledScript(g: GlobalContext) extends CompiledScript(g) {
 
@@ -33,31 +39,10 @@ class DerivedCompiledScript(g: GlobalContext) extends CompiledScript(g) {
 
 object Generator {
   private val mapping: Map[Class[_ <: Expression], String] = Map[Class[_ <: Expression], String](
-    classOf[`[]`] -> ""
-    , classOf[`:+`] -> "$plus"
-    , classOf[`:-`] -> "$munis"
-    , classOf[`/`] -> "$div"
-    , classOf[`*`] -> "$times"
-    , classOf[`%`] -> "$percent"
-    , classOf[`!:`] -> "unary_$bang"
-    , classOf[`~:`] -> "unary_$tilde"
-    , classOf[`-:`] -> "unary_$minus"
-    , classOf[`+:`] -> "unary_$plus"
-    , classOf[`<<`] -> "$less$less"
-    , classOf[`>>`] -> "$greater$eq"
-    , classOf[`&`] -> "$amp"
-    , classOf[`^`] -> "$up"
-    , classOf[`|`] -> "$bar"
-    , classOf[`&&`] -> "$amp$amp"
-    , classOf[`||`] -> "$bar$bar"
-    , classOf[`:==`] -> "$eq$eq"
-    , classOf[`:!=`] -> "$bang$eq"
-    , classOf[`<`] -> "$less"
-    , classOf[`>`] -> "$greater"
-    , classOf[`>=`] -> "$greater$eq"
-    , classOf[`<=`] -> "$less$eq"
-  )
-
+    classOf[`[]`] -> "apply", classOf[`:+`] -> "$plus", classOf[`:-`] -> "$minus", classOf[`/`] -> "$div", classOf[`*`] -> "$times", classOf[`%`] -> "$percent", classOf[`!:`] -> "unary_$bang"
+    , classOf[`~:`] -> "unary_$tilde", classOf[`-:`] -> "unary_$minus", classOf[`+:`] -> "unary_$plus", classOf[`<<`] -> "$less$less", classOf[`>>`] -> "$greater$eq", classOf[`&`] -> "$amp"
+    , classOf[`^`] -> "$up", classOf[`|`] -> "$bar", classOf[`&&`] -> "$amp$amp", classOf[`||`] -> "$bar$bar", classOf[`:==`] -> "$eq$eq", classOf[`:!=`] -> "$bang$eq", classOf[`<`] -> "$less"
+    , classOf[`>`] -> "$greater", classOf[`>=`] -> "$greater$eq", classOf[`<=`] -> "$less$eq")
 }
 
 private class Generator(b: `{}`, name: String) extends ClassLoader {
@@ -148,15 +133,49 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private def processElement(e: ScriptElement): Unit = e match {
     case exp: Expression => processExpression(exp)
     //    case DeclareVars(l) => l.foreach(declareVar)
-    //    case assignment: `=` => processAssignment(assignment)
-    //    case `if else`(i, e) => processIfElse(i, e)
+    case assignment: `=` => processAssignment(assignment)
+        case `if else`(i, e) => processIfElse(i, e)
     //    case `while do`(e, b,p) => processWhileDo(e, b,p)
     //    case `do while`(e, b) => processDoWhile(e, b)
     //    case `switch`(e, c, d) => processSwitch(e, c, d)
     //    case _: `break` => this.break
     //    case _: `continue` => this.breakContinue
-    //    case b: `{}` => processNewBlock(b)
+//        case b: `{}` => processNewBlock(b)
+        case b: `{}` => b.items.foreach(processElement)
   }
+
+//
+  private def processIfElse(_if: `if`, _else: Seq[`else`]) = {
+    def checkCondition(c: Expression): Unit ={
+      addIns(new VarInsnNode(ALOAD,0))
+      processExpression(c)
+      addIns(new MethodInsnNode(INVOKEVIRTUAL,cn.name, "checkCondition", s"(${typeSignature[Literal]})Z"))
+    }
+    val blockLabel = new LabelNode()
+    var lastLabel = new LabelNode()
+    checkCondition(_if.c)
+
+    addIns(new JumpInsnNode(IFEQ,lastLabel))
+    processElement(_if.block)
+    addIns(new JumpInsnNode(GOTO,blockLabel))
+    if(_else.isEmpty){
+      addIns(lastLabel)
+    }else for(e <- _else){
+      addIns(lastLabel)
+      for(c <- e.c) {
+        lastLabel = new LabelNode()
+        checkCondition(c)
+        addIns(new JumpInsnNode(IFEQ, lastLabel))
+      }
+      processElement(e.block)
+      addIns(new JumpInsnNode(GOTO,blockLabel))
+    }
+
+    addIns(blockLabel)
+
+  }
+
+  private def getFieldName(l: Literal) = literals.getOrElse(l, createField(l))
 
   private def createField(l: Literal) = {
     fieldNumber += 1
@@ -167,7 +186,8 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     node.name
   }
 
-  private def getFieldName(l: Literal) = literals.getOrElse(l, createField(l))
+
+
 
   private def processExpression(e: Expression): Unit = {
     e match {
@@ -175,9 +195,22 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
       case v: UnaryExpression => processExpression(v.r)
       case v: BinaryExpression => processExpression(v.l); processExpression(v.r); invokeOperator(v.getClass.asInstanceOf[Class[_ <: Expression]])
       //    case GerVar(v: LocalVariable) => localContext(v)
-      //    case GerVar(v: GlobalVairable) => globalContext(v)
-      //    case `call`(n,a) => FunctionInvoker.invoke(n,a.map(x => processExpression(mv,x)))
+      case GerVar(v: GlobalVairable) => addIns(new VarInsnNode(ALOAD, 0),new LdcInsnNode(v.name), new MethodInsnNode(INVOKEVIRTUAL,cn.name, "getGlobal", s"(${typeSignature[String]})${typeSignature[Literal]}"))
+      case `call`(n, a) => {
+        addIns(new FieldInsnNode(GETSTATIC, typeString[Functions] + "$", "MODULE$", s"L${typeString[Functions]}$$;"))
+        a.reverse.foreach(processExpression)
+        addIns(new MethodInsnNode(INVOKEVIRTUAL, typeString[Functions] + "$", n, s"(${typeSignature[Literal]*a.length})${if(FunctionInvoker.isReturnLiteral(n))typeSignature[Literal]else "V"}"))
+      }
+      //      case `++:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
+      //      case `--:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
+      //      case `:++`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result + DecimalLiteral(BigDecimal(1))))); result
+      //      case `:--`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result - DecimalLiteral(BigDecimal(1))))); result
     }
+  }
+
+  private def processAssignment(assignment: `=`) = (assignment.l, assignment.r) match {
+    //    case (v: LocalVariable, e) => localContext.set(v, processExpression(e))
+    case (g: GlobalVairable, e) => addIns(new VarInsnNode(ALOAD, 0),new LdcInsnNode(g.name)); processExpression(e); addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "setGlobal", s"(${typeSignature[String]}${typeSignature[Literal]})V"))
   }
 
   private def invokeOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, typeString[Literal], mapping.getOrElse(c, ""), s"(${typeSignature[Literal]})${typeSignature[Literal]}"))
@@ -198,10 +231,15 @@ object ScriptCompiler {
 
 
   def main(args: Array[String]) {
-    val s = EvalScriptParser.load("1+1+20+40+90*10/100+90%67<<1 + 1&1 + 1|1 + 1^1 + 1==1 + 1!=1 + 1<=2 + 1>=2 +1>>1")
+    val script = "$v=11 \n if($v==99) println(99) \n else($v==101) println(101) \n else println('else ' + $v)"
+    println(script)
+    val s = EvalScriptParser.load(script)
+    println(script)
     val cs = compile(s)
-    val instance = cs.getConstructor(classOf[GlobalContext]).newInstance(new GlobalContext(Map.empty[String, Any]))
+    val ctx = new GlobalContext(Map.empty[String, Any])
+    val instance = cs.getConstructor(classOf[GlobalContext]).newInstance(ctx)
     instance.execute
+    println(ctx.vars)
   }
 }
 

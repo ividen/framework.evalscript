@@ -14,17 +14,12 @@ public class TestClass extends CompiledScript {
     }
     @Override
     public void execute() {
-//        v1.$amp();
-//        v1.$amp$amp();
-//        v1.$bang$eq();
-//        v1.$bar();
-//        v1.$bar$bar();
-//        v1.$eq$eq();
-//        v1.$greater();
-//        v1.$greater$eq();
-//        v1.$greater$greater();
-//                v1.$less();
-//        v1.$up()
+        setGlobal("v",v1);
+        if(checkCondition(getGlobal("v"))) setGlobal("v",v2);
+
+
+
+//
 
     }
 

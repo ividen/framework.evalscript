@@ -56,6 +56,8 @@ trait Functions{
   def warn(x:Literal)
   def info(x:Literal)
   def error(x:Literal)
+  def print(x:Literal) = Predef.print(x.toStringLiteral.value)
+  def println(x:Literal) = Predef.println(x.toStringLiteral.value)
 }
 
 object Functions extends Functions{
@@ -79,4 +81,5 @@ object FunctionInvoker{
 
   def hasMethod(name: String) = methods.contains(name)
   def invoke(name: String, args: Seq[Literal]) : Literal =  methods.get(name).fold[Literal](NullLiteral)(x => instance.reflectMethod(x).apply(args:_*).asInstanceOf[Literal])
+  def isReturnLiteral(name:String) = methods.get(name).fold(false)(x => x.returnType != universe.typeOf[Unit])
 }

@@ -139,10 +139,12 @@ object Interpreter {
 }
 
 class GlobalContext(initVars: Map[String, _] = Map.empty) {
+
   var vars = mutable.Map[String, Literal]() ++ initVars.map(e => e._1 -> valToLiteral(e._2))
   def apply(v: GlobalVairable): Literal = apply(v.name)
   def apply(n: String) = vars.getOrElse(n, NullLiteral)
-  def set(v: GlobalVairable, value: Literal) = vars.put(v.name, value)
+  def set(v: GlobalVairable, value: Literal):Unit = set(v.name, value)
+  def set(v: String, value: Literal):Unit = vars.put(v, value)
   private def valToLiteral(value: Any) = value match {
     case s: String => StringLiteral(s)
     case x: Int => DecimalLiteral(BigDecimal(x))
@@ -164,36 +166,4 @@ case class LocalContext(parent: Option[LocalContext] = None) {
   def set(v: LocalVariable, value: Literal) = findContext(v).fold(this)(x => x).vars.put(v.name, value)
   def newVar(v: Variable, value: Literal) = vars.put(v.name, value)
   protected def findContext(v: LocalVariable): Option[LocalContext] = if (vars.contains(v.name)) Some(this) else parent.fold[Option[LocalContext]](None)(c => c.findContext(v))
-}
-
-object Main2  {
-  def main(args: Array[String]) {
-
-    val s =
-      """
-        |var array = [1,2,3,4,5,6,7]
-        |$len = len(array)
-        |var test_string = "111111_22222"
-        |$substring = str(decimal(substring(test_string,7,len(test_string)))/11111 + 2*4) + "  pi=" + Pi() + ", exp=" + E()
-        |
-      """.stripMargin
-
-
-    println(s)
-
-    val i = 1
-
-    val res = EvalScriptParser.load(s)
-    println(res)
-
-
-    for (i <- (1 to 100)) {
-      val ts = System.currentTimeMillis()
-      val context = new GlobalContext(Map[String, Any]("purchaseAmount" -> 100))
-      Interpreter.process(res, context)
-      println(System.currentTimeMillis() - ts)
-    }
-
-
-  }
 }
