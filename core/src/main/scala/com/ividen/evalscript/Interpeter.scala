@@ -155,6 +155,7 @@ class GlobalContext(initVars: Map[String, _] = Map.empty) {
     case x: Double => DecimalLiteral(BigDecimal(x))
     case null => NullLiteral
     case x: Boolean => BooleanLiteral(x)
+    case l: Literal => l
     case x => throw new IllegalArgumentException(s"Can't use $value for emaluation!")
   }
 }

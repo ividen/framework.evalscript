@@ -13,28 +13,17 @@ import scala.collection.parallel.mutable
 import scala.reflect.ClassTag
 
 
-abstract class CompiledScript(val globals: GlobalContext) {
+abstract class CompiledScript(globals: collection.immutable.Map[String, Literal]) {
   def execute
 
-  protected def setGlobal(n: String, v: Literal) = globals.set(n, v)
-  protected def getGlobal(n: String): Literal = globals(n)
+  def getGlobals: Map[String, Literal]
   protected def checkCondition(l: Literal): Boolean = l match {
     case DecimalLiteral(x) if x != 0 => true
     case StringLiteral(x) if !x.isEmpty => true
     case BooleanLiteral(x) if x => true
     case _ => false
   }
-}
-
-class DerivedCompiledScript(g: GlobalContext) extends CompiledScript(g) {
-
-  override def execute: Unit = {
-    val literal1 = DecimalLiteral(1)
-    val literal2 = DecimalLiteral(1)
-
-    val literal3 = literal1 + literal2
-    println(literal3)
-  }
+  protected def getGlobal(n: String, globals: Map[String, Literal]): Literal = globals.getOrElse(n, NullLiteral)
 }
 
 object Generator {
@@ -64,7 +53,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     addIns(new InsnNode(RETURN))
     initStaticVars
     generateConstructor
-
+    generateGetGlobals
     val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
     cn.accept(cw)
     val result = cw.toByteArray
@@ -115,68 +104,84 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     cn.name = name
     cn.superName = typeString[CompiledScript]
   }
-
-
   private def typeSignature[T](implicit tag: ClassTag[T]) = "L" + typeString[T](tag) + ";"
   private def typeString[T](implicit tag: ClassTag[T]) = tag.runtimeClass.getName.replaceAll("\\.", "/")
 
   private def generateConstructor: Unit = {
-    val constructor = new MethodNode(ACC_PUBLIC, "<init>", s"(${typeSignature[GlobalContext]})V", null, Array.empty)
-    addIns(constructor,new VarInsnNode(ALOAD, 0))
-    addIns(constructor,new VarInsnNode (ALOAD, 1))
-    addIns(constructor,new MethodInsnNode(INVOKESPECIAL, typeString[CompiledScript], "<init>", s"(${typeSignature[GlobalContext]})V"))
-    for(g <- globals){
-      val node = new FieldNode(ACC_PUBLIC , g, typeSignature[Literal], null, null)
+    val constructor = new MethodNode(ACC_PUBLIC, "<init>", s"(${typeSignature[scala.collection.immutable.Map[_, _]]})V", null, Array.empty)
+    addIns(constructor, new VarInsnNode(ALOAD, 0), new VarInsnNode(ALOAD, 1), new MethodInsnNode(INVOKESPECIAL, typeString[CompiledScript], "<init>", s"(${typeSignature[scala.collection.immutable.Map[_, _]]})V"))
+    for (g <- globals) {
+      val node = new FieldNode(ACC_PRIVATE, s"g_$g", typeSignature[Literal], null, null)
       fields.add(node)
-//      addIns(constructor, new TypeInsnNode(NEW, typeString[StringLiteral]), new InsnNode(DUP)
-//        , new LdcInsnNode(), new MethodInsnNode(INVOKESPECIAL, typeString[StringLiteral], "<init>", s"(${typeSignature[String]})V")
-//        , new FieldInsnNode(PUTFIELD, cn.name, g, typeSignature[Literal]))
-
+      addIns(constructor, new VarInsnNode(ALOAD, 0), new VarInsnNode(ALOAD, 0), new LdcInsnNode(g), new VarInsnNode(ALOAD, 1),
+        new MethodInsnNode(INVOKEVIRTUAL, cn.name, "getGlobal", s"(${typeSignature[String]}${typeSignature[scala.collection.immutable.Map[_, _]]})${typeSignature[Literal]}"),
+        new FieldInsnNode(PUTFIELD, cn.name, s"g_$g", typeSignature[Literal])
+      )
     }
 
-    addIns(constructor,new InsnNode(RETURN))
+    addIns(constructor, new InsnNode(RETURN))
     methods.add(constructor)
   }
+
+  private def generateGetGlobals: Unit = {
+    val m = new MethodNode(ACC_PUBLIC, "getGlobals", s"()${typeSignature[scala.collection.immutable.Map[String, Literal]]}", null, Array.empty)
+    addIns(m, new TypeInsnNode(NEW, typeString[java.util.HashMap[_,_]]), new InsnNode(DUP), new MethodInsnNode(INVOKESPECIAL, typeString[java.util.HashMap[_, _]], "<init>", "()V"), new VarInsnNode(ASTORE, 1))
+    for (g <- globals) {
+      addIns(m, new VarInsnNode(ALOAD, 1), new LdcInsnNode(g), new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_$g", typeSignature[Literal])
+        , new MethodInsnNode(INVOKEINTERFACE, typeString[java.util.Map[_,_]], "put", s"(${typeSignature[Object]}${typeSignature[Object]})${typeSignature[Object]}"), new InsnNode(POP))
+    }
+
+    addIns(m,new FieldInsnNode(GETSTATIC, typeString[scala.collection.immutable.Map[_, _]] + "$", "MODULE$", s"L${typeString[scala.collection.immutable.Map[_, _]]}$$;")
+      , new FieldInsnNode(GETSTATIC, "scala/collection/JavaConversions$", "MODULE$", "Lscala/collection/JavaConversions$;"), new VarInsnNode(ALOAD, 1)
+      , new MethodInsnNode(INVOKEVIRTUAL, "scala/collection/JavaConversions$", "asScalaMap", s"(${typeSignature[java.util.Map[_, _]]})${typeSignature[scala.collection.mutable.Map[_, _]]}")
+      , new MethodInsnNode(INVOKEINTERFACE, typeString[scala.collection.mutable.Map[_, _]], "toSeq", s"()${typeSignature[scala.collection.Seq[_]]}")
+      , new MethodInsnNode(INVOKEVIRTUAL, typeString[scala.collection.immutable.Map[_, _]] + "$", "apply", s"(${typeSignature[scala.collection.Seq[_]]})${typeSignature[scala.collection.GenMap[_, _]]}")
+      , new TypeInsnNode(CHECKCAST, typeString[scala.collection.immutable.Map[_, _]])
+    )
+    addIns(m, new InsnNode(ARETURN))
+    methods.add(m)
+  }
+
 
   private def processElement(e: ScriptElement): Unit = e match {
     case exp: Expression => processExpression(exp)
     //    case DeclareVars(l) => l.foreach(declareVar)
     case assignment: `=` => processAssignment(assignment)
-        case `if else`(i, e) => processIfElse(i, e)
+    case `if else`(i, e) => processIfElse(i, e)
     //    case `while do`(e, b,p) => processWhileDo(e, b,p)
     //    case `do while`(e, b) => processDoWhile(e, b)
     //    case `switch`(e, c, d) => processSwitch(e, c, d)
     //    case _: `break` => this.break
     //    case _: `continue` => this.breakContinue
-//        case b: `{}` => processNewBlock(b)
-        case b: `{}` => b.items.foreach(processElement)
+    //        case b: `{}` => processNewBlock(b)
+    case b: `{}` => b.items.foreach(processElement)
   }
 
-//
+  //
   private def processIfElse(_if: `if`, _else: Seq[`else`]) = {
-    def checkCondition(c: Expression): Unit ={
-      addIns(new VarInsnNode(ALOAD,0))
+    def checkCondition(c: Expression): Unit = {
+      addIns(new VarInsnNode(ALOAD, 0))
       processExpression(c)
-      addIns(new MethodInsnNode(INVOKEVIRTUAL,cn.name, "checkCondition", s"(${typeSignature[Literal]})Z"))
+      addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "checkCondition", s"(${typeSignature[Literal]})Z"))
     }
     val blockLabel = new LabelNode()
     var lastLabel = new LabelNode()
     checkCondition(_if.c)
 
-    addIns(new JumpInsnNode(IFEQ,lastLabel))
+    addIns(new JumpInsnNode(IFEQ, lastLabel))
     processElement(_if.block)
-    addIns(new JumpInsnNode(GOTO,blockLabel))
-    if(_else.isEmpty){
+    addIns(new JumpInsnNode(GOTO, blockLabel))
+    if (_else.isEmpty) {
       addIns(lastLabel)
-    }else for(e <- _else){
+    } else for (e <- _else) {
       addIns(lastLabel)
-      for(c <- e.c) {
+      for (c <- e.c) {
         lastLabel = new LabelNode()
         checkCondition(c)
         addIns(new JumpInsnNode(IFEQ, lastLabel))
       }
       processElement(e.block)
-      addIns(new JumpInsnNode(GOTO,blockLabel))
+      addIns(new JumpInsnNode(GOTO, blockLabel))
     }
 
     addIns(blockLabel)
@@ -195,8 +200,6 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   }
 
 
-
-
   private def processExpression(e: Expression): Unit = {
     e match {
       case LiteralExpression(l: Literal) => fieldGet(l)
@@ -205,17 +208,17 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
       //    case GerVar(v: LocalVariable) => localContext(v)
       case GerVar(v: GlobalVairable) => {
 
-        if(!globals.contains(v.name)){
+        if (!globals.contains(v.name)) {
           globals += v.name
         }
 
-        addIns(new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, v.name, typeSignature[Literal]))
+        addIns(new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_${v.name}", typeSignature[Literal]))
 
       }
       case `call`(n, a) => {
         addIns(new FieldInsnNode(GETSTATIC, typeString[Functions] + "$", "MODULE$", s"L${typeString[Functions]}$$;"))
         a.reverse.foreach(processExpression)
-        addIns(new MethodInsnNode(INVOKEVIRTUAL, typeString[Functions] + "$", n, s"(${typeSignature[Literal]*a.length})${if(FunctionInvoker.isReturnLiteral(n))typeSignature[Literal]else "V"}"))
+        addIns(new MethodInsnNode(INVOKEVIRTUAL, typeString[Functions] + "$", n, s"(${typeSignature[Literal] * a.length})${if (FunctionInvoker.isReturnLiteral(n)) typeSignature[Literal] else "V"}"))
       }
       //      case `++:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
       //      case `--:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
@@ -227,17 +230,10 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private def processAssignment(assignment: `=`) = (assignment.l, assignment.r) match {
     //    case (v: LocalVariable, e) => localContext.set(v, processExpression(e))
     case (g: GlobalVairable, e) => {
-//      addIns(new VarInsnNode(ALOAD, 0), new LdcInsnNode(g.name))
       addIns(new VarInsnNode(ALOAD, 0))
       processExpression(e);
-//      addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "setGlobal", s"(${typeSignature[String]}${typeSignature[Literal]})V"))
-      addIns(new FieldInsnNode(PUTFIELD, cn.name, g.name, typeSignature[Literal]))
+      addIns(new FieldInsnNode(PUTFIELD, cn.name, s"g_${g.name}", typeSignature[Literal]))
     }
-  }
-
-  private def processAssignment(assignment: `=`) = (assignment.l, assignment.r) match {
-    //    case (v: LocalVariable, e) => localContext.set(v, processExpression(e))
-    case (g: GlobalVairable, e) => addIns(new VarInsnNode(ALOAD, 0),new LdcInsnNode(g.name)); processExpression(e); addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "setGlobal", s"(${typeSignature[String]}${typeSignature[Literal]})V"))
   }
 
   private def invokeOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, typeString[Literal], mapping.getOrElse(c, ""), s"(${typeSignature[Literal]})${typeSignature[Literal]}"))
@@ -263,10 +259,10 @@ object ScriptCompiler {
     val s = EvalScriptParser.load(script)
     println(script)
     val cs = compile(s)
-    val ctx = new GlobalContext(Map.empty[String, Any])
-    val instance = cs.getConstructor(classOf[GlobalContext]).newInstance(ctx)
+
+    val instance = cs.getConstructor(classOf[scala.collection.immutable.Map[_,_]]).newInstance(Map.empty[String,Any])
     instance.execute
-    println(ctx.vars)
+    println(instance.getGlobals)
   }
 }
 
