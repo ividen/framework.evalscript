@@ -58,18 +58,28 @@ class FreeMarkerElseIfCalculations {
   def template(settings: String): Template = {
     val configuration = new Configuration(Configuration.VERSION_2_3_22)
     configuration.setTemplateUpdateDelay(0)
+//    configuration.setSetting(Configuration.CACHE_STORAGE_KEY, "strong:0, soft:0");
     configuration.setCacheStorage(new freemarker.cache.NullCacheStorage())
     new Template(settings, new StringReader(settings), configuration)
 
   }
 
   @Benchmark
-  def if_else_10(): Unit =  apply(t10, params10)
+  def if_else_10(): Unit = {
+    apply(t10, params10)
+  }
 
   @Benchmark
-  def if_else_100(): Unit =     apply(t100, params100)
+  def if_else_100(): Unit = {
+    apply(t100, params100)
+  }
 
   @Benchmark
-  def if_else_1000(): Unit =     apply(t1000, params1000)
+  def if_else_1000(): Unit = {
+    apply(t1000, params1000)
+  }
 
+  def main(args: Array[String]) {
+      if_else_10()
+  }
 }
