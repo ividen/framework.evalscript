@@ -193,8 +193,8 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     case DeclareVars(l) => l.foreach(x => assignLocalVar(blockInfo, x.l, x.r))
     case assignment: `=` => processAssignment(blockInfo, assignment)
     case `if else`(i, e) => processIfElse(blockInfo, i, e)
-    //    case `while do`(e, b,p) => processWhileDo(e, b,p)
-    //    case `do while`(e, b) => processDoWhile(e, b)
+    case `while do`(e, b,p) => processWhileDo(blockInfo,e, b,p)
+    case `do while`(e, b) => processDoWhile(blockInfo,e, b)
     //    case `switch`(e, c, d) => processSwitch(e, c, d)
     //    case _: `break` => this.break
     //    case _: `continue` => this.breakContinue
@@ -203,14 +203,9 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   }
 
   private def processIfElse(blockInfo: BlockInfo, _if: `if`, _else: Seq[`else`]) = {
-    def checkCondition(c: Expression): Unit = {
-      addIns(new VarInsnNode(ALOAD, 0))
-      processExpression(blockInfo, c)
-      addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "checkCondition", s"(${typeSignature[Literal]})Z"))
-    }
     val blockLabel = new LabelNode()
     var lastLabel = new LabelNode()
-    checkCondition(_if.c)
+    checkCondition(blockInfo,_if.c)
 
     addIns(new JumpInsnNode(IFEQ, lastLabel))
     processElement(blockInfo, _if.block)
@@ -221,7 +216,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
       addIns(lastLabel)
       for (c <- e.c) {
         lastLabel = new LabelNode()
-        checkCondition(c)
+        checkCondition(blockInfo,c)
         addIns(new JumpInsnNode(IFEQ, lastLabel))
       }
       processElement(blockInfo, e.block)
@@ -232,8 +227,35 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
 
   }
 
-  private def getFieldName(l: Literal) = literals.getOrElse(l, createField(l))
+  private def processWhileDo(blockInfo: BlockInfo, condition: Expression, block: `{}`, postFix: Option[ScriptElement]): Unit ={
+    val exitLabel = new LabelNode()
+    val conditionLabel = new LabelNode()
 
+    addIns(conditionLabel)
+    checkCondition(blockInfo,condition)
+    addIns(new JumpInsnNode(IFEQ, exitLabel))
+    processElement(blockInfo, block)
+    postFix.foreach(processElement(blockInfo, _))
+    addIns(new JumpInsnNode(GOTO, conditionLabel))
+    addIns(exitLabel)
+  }
+
+  private def processDoWhile(blockInfo: BlockInfo, condition: Expression, block: `{}`): Unit ={
+    val exitLabel = new LabelNode()
+    val conditionLabel = new LabelNode()
+
+    addIns(conditionLabel)
+    processElement(blockInfo, block)
+    checkCondition(blockInfo,condition)
+    addIns(new JumpInsnNode(IFEQ, exitLabel),new JumpInsnNode(GOTO, conditionLabel), exitLabel)
+  }
+
+  private def getFieldName(l: Literal) = literals.getOrElse(l, createField(l))
+  private def checkCondition(blockInfo: BlockInfo,c: Expression): Unit = {
+    addIns(new VarInsnNode(ALOAD, 0))
+    processExpression(blockInfo, c)
+    addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "checkCondition", s"(${typeSignature[Literal]})Z"))
+  }
   private def createField(l: Literal) = {
     staticFieldCounter += 1
     val n = s"v$staticFieldCounter"
@@ -307,12 +329,16 @@ object ScriptCompiler {
 
   def main(args: Array[String]) {
     val script =
-      """var l=1,m=4
+      """
+        |$result = 1
+        |$prev = 1
+        |$i = 1
+        |do{
+        |  $result += $prev
+        |  $prev = $result
+        |  $i+=1
+        |}while($i<5)
         |
-        |$result_l = l++
-        |$result_2 = l
-        |$result_3 = m--
-        |$result_4 = m
       """.stripMargin
     println(script)
     val s = EvalScriptParser.load(script)
