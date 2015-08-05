@@ -16,7 +16,7 @@ sealed trait UnaryExpression extends Expression{
   def r: Expression
 }
 case class LiteralExpression(literal: Literal) extends Expression
-case class GerVar(variable:Variable) extends Expression
+case class GetVar(variable:Variable) extends Expression
 case class `call`(name: String, args: Seq[Expression]) extends Expression
 case class `[]`( l: Expression,r: Expression) extends BinaryExpression
 case class `:+`( l: Expression, r: Expression) extends BinaryExpression

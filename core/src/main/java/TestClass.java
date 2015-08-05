@@ -1,7 +1,6 @@
 import com.ividen.evalscript.CompiledScript;
 import com.ividen.evalscript.DecimalLiteral;
 import com.ividen.evalscript.Literal;
-import com.sun.org.apache.bcel.internal.generic.D2F;
 import scala.collection.JavaConversions$;
 import scala.collection.immutable.Map;
 import scala.collection.immutable.Map$;
@@ -26,10 +25,10 @@ public class TestClass extends CompiledScript {
 
     @Override
     public void execute() {
-        Literal v = v1;
-        Literal m = v2;
-        Literal  k = v3;
-        g_result = v.$plus(m).$plus(k);
+        Literal l = v1;
+
+        g_result = v1;
+
     }
 
 

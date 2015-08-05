@@ -106,10 +106,10 @@ object Interpreter {
       case `~:`(r) => ~processExpression(r)
       case `-:`(r) => -processExpression(r)
       case `+:`(r) => +processExpression(r)
-      case `++:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
-      case `--:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
-      case `:++`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result + DecimalLiteral(BigDecimal(1))))); result
-      case `:--`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result - DecimalLiteral(BigDecimal(1))))); result
+      case `++:`(v) => val result = processExpression(GetVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
+      case `--:`(v) => val result = processExpression(GetVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
+      case `:++`(v) => val result = processExpression(GetVar(v)); processAssignment(`=`(v, LiteralExpression(result + DecimalLiteral(BigDecimal(1))))); result
+      case `:--`(v) => val result = processExpression(GetVar(v)); processAssignment(`=`(v, LiteralExpression(result - DecimalLiteral(BigDecimal(1))))); result
       case `>>`(l, r) => processExpression(l) >> processExpression(r)
       case `<<`(l, r) => processExpression(l) << processExpression(r)
       case `&`(l, r) => processExpression(l) & processExpression(r)
@@ -123,8 +123,8 @@ object Interpreter {
       case `>`(l, r) => processExpression(l) > processExpression(r)
       case `>=`(l, r) => processExpression(l) >= processExpression(r)
       case `<=`(l, r) => processExpression(l) <= processExpression(r)
-      case GerVar(v: LocalVariable) => localContext(v)
-      case GerVar(v: GlobalVairable) => globalContext(v)
+      case GetVar(v: LocalVariable) => localContext(v)
+      case GetVar(v: GlobalVairable) => globalContext(v)
       case `call`(n,a) => FunctionInvoker.invoke(n,a.map(processExpression))
     }
 

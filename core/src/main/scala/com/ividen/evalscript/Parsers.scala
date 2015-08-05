@@ -98,7 +98,7 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
 
   private def factor: Parser[E] = function | literalExpression | variableExpression | "(" ~> expression <~ ")"
   private def literalExpression: Parser[E] = scriptLiteral ^^ LiteralExpression
-  private def variableExpression: Parser[E] = variable ^^ GerVar
+  private def variableExpression: Parser[E] = variable ^^ GetVar
   private def foldExpression(exp: (E ~ List[(E) => E])) = exp._2.foldLeft(exp._1)((x, f) => f(x))
   private def indexGroup = operationPrecedence(factor,index)
   private def postfixGroup =  postfixInc | postfixDec | indexGroup
@@ -117,7 +117,7 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
 }
 
 trait AssignmentParser extends RegexParsers { self: ExpressionParser with IdentifierParser =>
-  implicit def variableToExpression(v: Variable):Expression = GerVar(v)
+  implicit def variableToExpression(v: Variable):Expression = GetVar(v)
 
   def assignments = declareVars | assign | assignPlus |assignMinus |assignTimes |assignDivide |assignRemainder |
     assignLogicalNot|assignBitwiseNot | assignBitwiseRightShift |

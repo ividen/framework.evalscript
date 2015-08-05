@@ -4,7 +4,6 @@ import java.io.{FileOutputStream, File}
 import java.security.MessageDigest
 
 import org.apache.commons.codec.binary.{Hex, Base64, StringUtils}
-import org.objectweb.asm.commons.LocalVariablesSorter
 import org.objectweb.asm.tree._
 import org.objectweb.asm.{MethodVisitor, ClassWriter}
 import org.objectweb.asm.Opcodes._
@@ -86,7 +85,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   }
 
   private def saveClass(result: Array[Byte]): Unit = {
-    val file = new File("/share/prj/Test.class")
+    val file = new File("/Users/alexander.guzanov/prj/TestClass.class")
     file.createNewFile()
     val stream = new FileOutputStream(file, false)
     stream.write(result)
@@ -97,6 +96,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     if (!literals.isEmpty) {
       val m = new MethodNode(ACC_STATIC, "<clinit>", "()V", null, Array.empty)
       for (e <- literals) {
+        //todo aguzanov arrayliteral
         e._1 match {
           case DecimalLiteral(v) => initDecimal(m, e._2, v)
           case StringLiteral(v) => initString(m, e._2, v)
@@ -116,13 +116,8 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     addIns(blockInfo.end)
   }
 
-  private def createBlockInfo: BlockInfo = BlockInfo(new LabelNode(), new LabelNode(), {
-    blockCounter += 1;
-    blockCounter
-  }, None)
-
+  private def createBlockInfo: BlockInfo = BlockInfo(new LabelNode(), new LabelNode(), { blockCounter += 1 ;blockCounter }, None)
   private def addIns(il: AbstractInsnNode*) = il.foreach(exec.instructions.add)
-
   private def addIns(m: MethodNode, il: AbstractInsnNode*) = il.foreach(m.instructions.add)
 
   private def initDecimal(m: MethodNode, n: String, v: BigDecimal): Unit = addIns(m, new TypeInsnNode(NEW, typeString[DecimalLiteral]), new InsnNode(DUP)
@@ -139,15 +134,8 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     , new MethodInsnNode(INVOKESPECIAL, typeString[BooleanLiteral], "<init>", s"(Z)V")
     , new FieldInsnNode(PUTSTATIC, cn.name, n, typeSignature[Literal]))
 
-  private def initClassName: Unit = {
-    cn.version = V1_6
-    cn.access = ACC_PUBLIC
-    cn.name = name
-    cn.superName = typeString[CompiledScript]
-  }
-
+  private def initClassName: Unit = cn.visit(V1_6,ACC_PUBLIC,name,null,typeString[CompiledScript],Array.empty)
   private def typeSignature[T](implicit tag: ClassTag[T]) = "L" + typeString[T](tag) + ";"
-
   private def typeString[T](implicit tag: ClassTag[T]) = tag.runtimeClass.getName.replaceAll("\\.", "/")
 
   private def generateConstructor: Unit = {
@@ -260,13 +248,13 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
       case LiteralExpression(l: Literal) => fieldGet(l)
       case v: UnaryExpression => processExpression(blockInfo, v.r)
       case v: BinaryExpression => processBinaryExpression(blockInfo, v)
-      case GerVar(v: LocalVariable) => processGetLocalVar(blockInfo, v)
-      case GerVar(v: GlobalVairable) => processGetGlobalVar(v)
+      case GetVar(v: LocalVariable) => processGetLocalVar(blockInfo, v)
+      case GetVar(v: GlobalVairable) => processGetGlobalVar(v)
       case `call`(n, a) => processCall(blockInfo, n, a)
-//      case `++:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
-//      case `--:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
-//      case `:++`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result + DecimalLiteral(BigDecimal(1))))); result
-//      case `:--`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result - DecimalLiteral(BigDecimal(1))))); result
+      case `++:`(v) => processAssignment(blockInfo,`=`(v, `:+`(GetVar(v),LiteralExpression(DecimalLiteral(BigDecimal(1))))));processExpression(blockInfo,GetVar(v))
+      case `--:`(v) => processAssignment(blockInfo,`=`(v, `:-`(GetVar(v),LiteralExpression(DecimalLiteral(BigDecimal(1))))));processExpression(blockInfo,GetVar(v))
+      case `:++`(v) => processExpression(blockInfo, GetVar(v)); processAssignment(blockInfo,`=`(v, `:+`(GetVar(v),LiteralExpression(DecimalLiteral(BigDecimal(1))))))
+      case `:--`(v) => processExpression(blockInfo, GetVar(v)); processAssignment(blockInfo,`=`(v, `:-`(GetVar(v),LiteralExpression(DecimalLiteral(BigDecimal(1))))))
     }
   }
 
@@ -281,6 +269,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     addIns(new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_${v.name}", typeSignature[Literal]))
   }
 
+  //todo aguzanov maby we should init missing local variable with NullLiteral
   private def processGetLocalVar(blockInfo: BlockInfo, v: LocalVariable): Unit = addIns(new VarInsnNode(ALOAD, getOrDefineLocalVar(blockInfo, v)))
 
   private def processBinaryExpression(blockInfo: BlockInfo, v: BinaryExpression): Unit = {
@@ -300,7 +289,6 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   }
 
   private def invokeOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, typeString[Literal], mapping.getOrElse(c, ""), s"(${typeSignature[Literal]})${typeSignature[Literal]}"))
-
   private def fieldGet(l: Literal) = addIns(new FieldInsnNode(GETSTATIC, cn.name, getFieldName(l), typeSignature[Literal]))
 }
 
@@ -319,20 +307,15 @@ object ScriptCompiler {
 
   def main(args: Array[String]) {
     val script =
-      """var l=1,m=2
-        |$result_1=l*10*m
-        |{
-        |  var l=2
-        |  k = l+1
-        |  $result_2=l*10*k
-        |  l = l + 1
-        |  $result_l = l
-        |}
-        |$result_l_2=l
+      """var l=1,m=4
+        |
+        |$result_l = l++
+        |$result_2 = l
+        |$result_3 = m--
+        |$result_4 = m
       """.stripMargin
     println(script)
     val s = EvalScriptParser.load(script)
-    println(script)
     val cs = compile(s)
 
     val instance = cs.getConstructor(classOf[scala.collection.immutable.Map[_, _]]).newInstance(Map.empty[String, Any])
@@ -340,4 +323,5 @@ object ScriptCompiler {
     println(instance.getGlobals)
   }
 }
+
 
