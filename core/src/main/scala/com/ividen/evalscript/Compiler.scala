@@ -20,12 +20,14 @@ abstract class CompiledScript(globals: collection.immutable.Map[String, Literal]
   def execute
 
   def getGlobals: Map[String, Literal]
+
   protected def checkCondition(l: Literal): Boolean = l match {
     case DecimalLiteral(x) if x != 0 => true
     case StringLiteral(x) if !x.isEmpty => true
     case BooleanLiteral(x) if x => true
     case _ => false
   }
+
   protected def getGlobal(n: String, globals: Map[String, Literal]): Literal = globals.getOrElse(n, NullLiteral)
 }
 
@@ -46,6 +48,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     private val localVarsMapping: collection.mutable.Map[String, Int] = new collection.mutable.HashMap[String, Int]
 
     def apply(n: String): Option[Int] = localVarsMapping.get(n).fold(prevBlock.flatMap(b => b.apply(n)))(Some(_))
+
     def define(n: String, index: Int): Unit = localVarsMapping += (n -> index)
   }
 
@@ -58,7 +61,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private val localVars: java.util.List[LocalVariableNode] = exec.localVariables.asInstanceOf[java.util.List[LocalVariableNode]]
 
   private var staticFieldCounter: Int = 0
-  private var localVariableCounter: Int = 1
+  private var localVariableCounter: Int = 0
   private var blockCounter: Int = 0
 
 
@@ -81,13 +84,15 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     saveClass(result)
     result
   }
+
   private def saveClass(result: Array[Byte]): Unit = {
-    val file = new File("/Users/alexander.guzanov/prj/Test.class")
+    val file = new File("/share/prj/Test.class")
     file.createNewFile()
     val stream = new FileOutputStream(file, false)
     stream.write(result)
     stream.close()
   }
+
   private def initStaticVars = {
     if (!literals.isEmpty) {
       val m = new MethodNode(ACC_STATIC, "<clinit>", "()V", null, Array.empty)
@@ -115,7 +120,9 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     blockCounter += 1;
     blockCounter
   }, None)
+
   private def addIns(il: AbstractInsnNode*) = il.foreach(exec.instructions.add)
+
   private def addIns(m: MethodNode, il: AbstractInsnNode*) = il.foreach(m.instructions.add)
 
   private def initDecimal(m: MethodNode, n: String, v: BigDecimal): Unit = addIns(m, new TypeInsnNode(NEW, typeString[DecimalLiteral]), new InsnNode(DUP)
@@ -138,7 +145,9 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     cn.name = name
     cn.superName = typeString[CompiledScript]
   }
+
   private def typeSignature[T](implicit tag: ClassTag[T]) = "L" + typeString[T](tag) + ";"
+
   private def typeString[T](implicit tag: ClassTag[T]) = tag.runtimeClass.getName.replaceAll("\\.", "/")
 
   private def generateConstructor: Unit = {
@@ -176,22 +185,24 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     methods.add(m)
   }
 
-  private def declareVar(blockInfo: BlockInfo, e: `=`) = {
-    val index = getOrDefineLocalVar(blockInfo, e)
-    processExpression(blockInfo,e.r)
+  private def assignLocalVar(blockInfo: BlockInfo, l: Variable, e: Expression) = {
+    val index = getOrDefineLocalVar(blockInfo, l)
+    processExpression(blockInfo, e)
     addIns(new VarInsnNode(ASTORE, index))
   }
 
-  private def getOrDefineLocalVar(blockInfo: BlockInfo, e: `=`): Int = blockInfo(e.l.name).fold(defineLocalVar(blockInfo, e))(x => x)
-  private def defineLocalVar(blockInfo: BlockInfo, e: `=`): Int = {
+  private def getOrDefineLocalVar(blockInfo: BlockInfo, l: Variable): Int = blockInfo(l.name).fold(defineLocalVar(blockInfo, l))(x => x)
+
+  private def defineLocalVar(blockInfo: BlockInfo, l: Variable): Int = {
     localVariableCounter += 1
-    blockInfo.define(e.l.name, localVariableCounter)
-    localVars.add(new LocalVariableNode(e.l.name, typeSignature[Literal], typeSignature[Literal], blockInfo.start, blockInfo.end, localVariableCounter))
+    blockInfo.define(l.name, localVariableCounter)
+    localVars.add(new LocalVariableNode(l.name, typeSignature[Literal], typeSignature[Literal], blockInfo.start, blockInfo.end, localVariableCounter))
     localVariableCounter
   }
+
   private def processElement(blockInfo: BlockInfo, e: ScriptElement): Unit = e match {
     case exp: Expression => processExpression(blockInfo, exp)
-    case DeclareVars(l) => l.foreach(declareVar(blockInfo, _))
+    case DeclareVars(l) => l.foreach(x => assignLocalVar(blockInfo, x.l, x.r))
     case assignment: `=` => processAssignment(blockInfo, assignment)
     case `if else`(i, e) => processIfElse(blockInfo, i, e)
     //    case `while do`(e, b,p) => processWhileDo(e, b,p)
@@ -251,16 +262,18 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
       case v: BinaryExpression => processBinaryExpression(blockInfo, v)
       case GerVar(v: LocalVariable) => processGetLocalVar(blockInfo, v)
       case GerVar(v: GlobalVairable) => processGetGlobalVar(v)
-      case `call`(n, a) => {
-        addIns(new FieldInsnNode(GETSTATIC, typeString[Functions] + "$", "MODULE$", s"L${typeString[Functions]}$$;"))
-        a.reverse.foreach(processExpression(blockInfo, _))
-        addIns(new MethodInsnNode(INVOKEVIRTUAL, typeString[Functions] + "$", n, s"(${typeSignature[Literal] * a.length})${if (FunctionInvoker.isReturnLiteral(n)) typeSignature[Literal] else "V"}"))
-      }
-      //      case `++:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
-      //      case `--:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
-      //      case `:++`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result + DecimalLiteral(BigDecimal(1))))); result
-      //      case `:--`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result - DecimalLiteral(BigDecimal(1))))); result
+      case `call`(n, a) => processCall(blockInfo, n, a)
+//      case `++:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
+//      case `--:`(v) => val result = processExpression(GerVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
+//      case `:++`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result + DecimalLiteral(BigDecimal(1))))); result
+//      case `:--`(v) => val result = processExpression(GerVar(v)); processAssignment(`=`(v, LiteralExpression(result - DecimalLiteral(BigDecimal(1))))); result
     }
+  }
+
+  def processCall(blockInfo: BlockInfo, n: String, a: Seq[Expression]): Unit = {
+    addIns(new FieldInsnNode(GETSTATIC, typeString[Functions] + "$", "MODULE$", s"L${typeString[Functions]}$$;"))
+    a.reverse.foreach(processExpression(blockInfo, _))
+    addIns(new MethodInsnNode(INVOKEVIRTUAL, typeString[Functions] + "$", n, s"(${typeSignature[Literal] * a.length})${if (FunctionInvoker.isReturnLiteral(n)) typeSignature[Literal] else "V"}"))
   }
 
   private def processGetGlobalVar(v: GlobalVairable): Unit = {
@@ -268,15 +281,18 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     addIns(new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_${v.name}", typeSignature[Literal]))
   }
 
-  private def processGetLocalVar(blockInfo: BlockInfo, v: LocalVariable): Unit =  addIns(new VarInsnNode(ALOAD, getOrDefineLocalVar(blockInfo, `=`(v, LiteralExpression(NullLiteral)))))
+  private def processGetLocalVar(blockInfo: BlockInfo, v: LocalVariable): Unit = addIns(new VarInsnNode(ALOAD, getOrDefineLocalVar(blockInfo, v)))
+
   private def processBinaryExpression(blockInfo: BlockInfo, v: BinaryExpression): Unit = {
     processExpression(blockInfo, v.l);
     processExpression(blockInfo, v.r);
     invokeOperator(v.getClass.asInstanceOf[Class[_ <: Expression]])
   }
+
   private def processAssignment(blockInfo: BlockInfo, assignment: `=`) = (assignment.l, assignment.r) match {
-    //    case (v: LocalVariable, e) => localContext.set(v, processExpression(e))
+    case (v: LocalVariable, e) => assignLocalVar(blockInfo, v, e)
     case (g: GlobalVairable, e) => {
+      globals += g.name
       addIns(new VarInsnNode(ALOAD, 0))
       processExpression(blockInfo, e);
       addIns(new FieldInsnNode(PUTFIELD, cn.name, s"g_${g.name}", typeSignature[Literal]))
@@ -284,6 +300,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   }
 
   private def invokeOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, typeString[Literal], mapping.getOrElse(c, ""), s"(${typeSignature[Literal]})${typeSignature[Literal]}"))
+
   private def fieldGet(l: Literal) = addIns(new FieldInsnNode(GETSTATIC, cn.name, getFieldName(l), typeSignature[Literal]))
 }
 
@@ -301,7 +318,18 @@ object ScriptCompiler {
 
 
   def main(args: Array[String]) {
-    val script = "var l=1,m=2,n=3 \n$result=l+m+n"
+    val script =
+      """var l=1,m=2
+        |$result_1=l*10*m
+        |{
+        |  var l=2
+        |  k = l+1
+        |  $result_2=l*10*k
+        |  l = l + 1
+        |  $result_l = l
+        |}
+        |$result_l_2=l
+      """.stripMargin
     println(script)
     val s = EvalScriptParser.load(script)
     println(script)

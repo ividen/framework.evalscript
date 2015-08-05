@@ -1,6 +1,7 @@
 import com.ividen.evalscript.CompiledScript;
 import com.ividen.evalscript.DecimalLiteral;
 import com.ividen.evalscript.Literal;
+import com.sun.org.apache.bcel.internal.generic.D2F;
 import scala.collection.JavaConversions$;
 import scala.collection.immutable.Map;
 import scala.collection.immutable.Map$;
@@ -15,25 +16,27 @@ import java.util.HashMap;
 public class TestClass extends CompiledScript {
     static final Literal v1 = new DecimalLiteral(BigDecimal.valueOf(10));
     static final Literal v2 = new DecimalLiteral(BigDecimal.valueOf(20));
-    private Literal g_multiplier;
-    private Literal g_price;
+    static final Literal v3 = new DecimalLiteral(BigDecimal.valueOf(30));
+    private Literal g_result;
 
     public TestClass(Map<String, Literal> globals) {
         super(globals);
-        g_multiplier = getGlobal("mujltiplier", globals);
-        g_price = getGlobal("price", globals);
+
     }
 
     @Override
     public void execute() {
+        Literal v = v1;
+        Literal m = v2;
+        Literal  k = v3;
+        g_result = v.$plus(m).$plus(k);
     }
 
 
     @Override
     public Map<String, Literal> getGlobals() {
         java.util.Map<String, Literal> result = new HashMap<>();
-        result.put("multiplier", g_multiplier);
-        result.put("price", g_price);
+        result.put("multiplier", g_result);
         return Map$.MODULE$.apply(JavaConversions$.MODULE$.asScalaMap(result).toSeq());
     }
 }

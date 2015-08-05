@@ -1,6 +1,6 @@
 scalaVersion := "2.10.4"
 
-lazy val root = project.in(file(".")).aggregate(core,benchmark)
+lazy val evalscript = project.in(file(".")).aggregate(core,benchmark)
 
 lazy val core = project.in( file("core/"))
 
