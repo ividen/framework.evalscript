@@ -47,7 +47,6 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     private val localVarsMapping: collection.mutable.Map[String, Int] = new collection.mutable.HashMap[String, Int]
 
     def apply(n: String): Option[Int] = localVarsMapping.get(n).fold(prevBlock.flatMap(b => b.apply(n)))(Some(_))
-
     def define(n: String, index: Int): Unit = localVarsMapping += (n -> index)
   }
 
@@ -67,7 +66,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   def compile: Class[CompiledScript] = {
     initClassName
     methods.add(exec)
-    processBlock(b)
+    processBlock(None, b)
     addIns(new InsnNode(RETURN))
     initStaticVars
     generateConstructor
@@ -101,6 +100,8 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
           case DecimalLiteral(v) => initDecimal(m, e._2, v)
           case StringLiteral(v) => initString(m, e._2, v)
           case BooleanLiteral(v) => initBoolean(m, e._2, v)
+          case ArrayLiteral(v) => println(v)
+          case _ =>
         }
       }
       m.instructions.add(new InsnNode(RETURN))
@@ -109,14 +110,17 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   }
 
 
-  private def processBlock(b: `{}`) = {
-    val blockInfo = createBlockInfo
+  private def processBlock(parentBlock: Option[BlockInfo],b: `{}`) = {
+    val blockInfo = createBlockInfo(parentBlock)
     addIns(blockInfo.start)
     b.items.foreach(processElement(blockInfo, _))
     addIns(blockInfo.end)
   }
 
-  private def createBlockInfo: BlockInfo = BlockInfo(new LabelNode(), new LabelNode(), { blockCounter += 1 ;blockCounter }, None)
+  private def createBlockInfo(parentBlock: Option[BlockInfo]): BlockInfo = BlockInfo(new LabelNode(), new LabelNode(), {
+    blockCounter += 1;
+    blockCounter
+  }, parentBlock)
   private def addIns(il: AbstractInsnNode*) = il.foreach(exec.instructions.add)
   private def addIns(m: MethodNode, il: AbstractInsnNode*) = il.foreach(m.instructions.add)
 
@@ -134,7 +138,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     , new MethodInsnNode(INVOKESPECIAL, typeString[BooleanLiteral], "<init>", s"(Z)V")
     , new FieldInsnNode(PUTSTATIC, cn.name, n, typeSignature[Literal]))
 
-  private def initClassName: Unit = cn.visit(V1_6,ACC_PUBLIC,name,null,typeString[CompiledScript],Array.empty)
+  private def initClassName: Unit = cn.visit(V1_5, ACC_PUBLIC, name, null, typeString[CompiledScript], Array.empty)
   private def typeSignature[T](implicit tag: ClassTag[T]) = "L" + typeString[T](tag) + ";"
   private def typeString[T](implicit tag: ClassTag[T]) = tag.runtimeClass.getName.replaceAll("\\.", "/")
 
@@ -193,19 +197,18 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     case DeclareVars(l) => l.foreach(x => assignLocalVar(blockInfo, x.l, x.r))
     case assignment: `=` => processAssignment(blockInfo, assignment)
     case `if else`(i, e) => processIfElse(blockInfo, i, e)
-    case `while do`(e, b,p) => processWhileDo(blockInfo,e, b,p)
-    case `do while`(e, b) => processDoWhile(blockInfo,e, b)
+    case `while do`(e, b, p) => processWhileDo(blockInfo, e, b, p)
+    case `do while`(e, b) => processDoWhile(blockInfo, e, b)
     //    case `switch`(e, c, d) => processSwitch(e, c, d)
     //    case _: `break` => this.break
     //    case _: `continue` => this.breakContinue
-    //        case b: `{}` => processNewBlock(b)
-    case b: `{}` => processBlock(b)
+    case b: `{}` => processBlock(Some(blockInfo),b)
   }
 
   private def processIfElse(blockInfo: BlockInfo, _if: `if`, _else: Seq[`else`]) = {
     val blockLabel = new LabelNode()
     var lastLabel = new LabelNode()
-    checkCondition(blockInfo,_if.c)
+    checkCondition(blockInfo, _if.c)
 
     addIns(new JumpInsnNode(IFEQ, lastLabel))
     processElement(blockInfo, _if.block)
@@ -216,7 +219,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
       addIns(lastLabel)
       for (c <- e.c) {
         lastLabel = new LabelNode()
-        checkCondition(blockInfo,c)
+        checkCondition(blockInfo, c)
         addIns(new JumpInsnNode(IFEQ, lastLabel))
       }
       processElement(blockInfo, e.block)
@@ -227,12 +230,12 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
 
   }
 
-  private def processWhileDo(blockInfo: BlockInfo, condition: Expression, block: `{}`, postFix: Option[ScriptElement]): Unit ={
+  private def processWhileDo(blockInfo: BlockInfo, condition: Expression, block: `{}`, postFix: Option[ScriptElement]): Unit = {
     val exitLabel = new LabelNode()
     val conditionLabel = new LabelNode()
 
     addIns(conditionLabel)
-    checkCondition(blockInfo,condition)
+    checkCondition(blockInfo, condition)
     addIns(new JumpInsnNode(IFEQ, exitLabel))
     processElement(blockInfo, block)
     postFix.foreach(processElement(blockInfo, _))
@@ -240,18 +243,18 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     addIns(exitLabel)
   }
 
-  private def processDoWhile(blockInfo: BlockInfo, condition: Expression, block: `{}`): Unit ={
+  private def processDoWhile(blockInfo: BlockInfo, condition: Expression, block: `{}`): Unit = {
     val exitLabel = new LabelNode()
     val conditionLabel = new LabelNode()
 
     addIns(conditionLabel)
     processElement(blockInfo, block)
-    checkCondition(blockInfo,condition)
-    addIns(new JumpInsnNode(IFEQ, exitLabel),new JumpInsnNode(GOTO, conditionLabel), exitLabel)
+    checkCondition(blockInfo, condition)
+    addIns(new JumpInsnNode(IFEQ, exitLabel), new JumpInsnNode(GOTO, conditionLabel), exitLabel)
   }
 
   private def getFieldName(l: Literal) = literals.getOrElse(l, createField(l))
-  private def checkCondition(blockInfo: BlockInfo,c: Expression): Unit = {
+  private def checkCondition(blockInfo: BlockInfo, c: Expression): Unit = {
     addIns(new VarInsnNode(ALOAD, 0))
     processExpression(blockInfo, c)
     addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "checkCondition", s"(${typeSignature[Literal]})Z"))
@@ -273,10 +276,10 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
       case GetVar(v: LocalVariable) => processGetLocalVar(blockInfo, v)
       case GetVar(v: GlobalVairable) => processGetGlobalVar(v)
       case `call`(n, a) => processCall(blockInfo, n, a)
-      case `++:`(v) => processAssignment(blockInfo,`=`(v, `:+`(GetVar(v),LiteralExpression(DecimalLiteral(BigDecimal(1))))));processExpression(blockInfo,GetVar(v))
-      case `--:`(v) => processAssignment(blockInfo,`=`(v, `:-`(GetVar(v),LiteralExpression(DecimalLiteral(BigDecimal(1))))));processExpression(blockInfo,GetVar(v))
-      case `:++`(v) => processExpression(blockInfo, GetVar(v)); processAssignment(blockInfo,`=`(v, `:+`(GetVar(v),LiteralExpression(DecimalLiteral(BigDecimal(1))))))
-      case `:--`(v) => processExpression(blockInfo, GetVar(v)); processAssignment(blockInfo,`=`(v, `:-`(GetVar(v),LiteralExpression(DecimalLiteral(BigDecimal(1))))))
+      case `++:`(v) => processAssignment(blockInfo, `=`(v, `:+`(GetVar(v), LiteralExpression(DecimalLiteral(BigDecimal(1)))))); processExpression(blockInfo, GetVar(v))
+      case `--:`(v) => processAssignment(blockInfo, `=`(v, `:-`(GetVar(v), LiteralExpression(DecimalLiteral(BigDecimal(1)))))); processExpression(blockInfo, GetVar(v))
+      case `:++`(v) => processExpression(blockInfo, GetVar(v)); processAssignment(blockInfo, `=`(v, `:+`(GetVar(v), LiteralExpression(DecimalLiteral(BigDecimal(1))))))
+      case `:--`(v) => processExpression(blockInfo, GetVar(v)); processAssignment(blockInfo, `=`(v, `:-`(GetVar(v), LiteralExpression(DecimalLiteral(BigDecimal(1))))))
     }
   }
 
@@ -291,8 +294,11 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     addIns(new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_${v.name}", typeSignature[Literal]))
   }
 
-  //todo aguzanov maby we should init missing local variable with NullLiteral
-  private def processGetLocalVar(blockInfo: BlockInfo, v: LocalVariable): Unit = addIns(new VarInsnNode(ALOAD, getOrDefineLocalVar(blockInfo, v)))
+  private def processGetLocalVar(blockInfo: BlockInfo, v: LocalVariable): Unit = {
+    if (blockInfo(v.name).isEmpty)
+      assignLocalVar(blockInfo, v, LiteralExpression(NullLiteral))
+    blockInfo(v.name).foreach(x => addIns(new VarInsnNode(ALOAD,x)))
+  }
 
   private def processBinaryExpression(blockInfo: BlockInfo, v: BinaryExpression): Unit = {
     processExpression(blockInfo, v.l);
@@ -330,14 +336,15 @@ object ScriptCompiler {
   def main(args: Array[String]) {
     val script =
       """
-        |$result = 1
-        |$prev = 1
-        |$i = 1
-        |do{
-        |  $result += $prev
-        |  $prev = $result
-        |  $i+=1
-        |}while($i<5)
+        |var i = 10, k = 1
+        |
+        |for(var j = 1; j<10; j++ ){
+        |   for(var i = 1;i<10; i+=1){
+        |     for(k = 1;k<10;k+=1){
+        |        println(str(j) + " " + str(i) + " " + str(k) )
+        |     }
+        |   }
+        |}
         |
       """.stripMargin
     println(script)

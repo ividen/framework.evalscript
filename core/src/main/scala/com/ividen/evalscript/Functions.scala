@@ -3,9 +3,9 @@ package com.ividen.evalscript
 import org.slf4j.LoggerFactory
 
 trait Functions{
-  def bool(literal: Literal): BooleanLiteral = literal.toBooleanLiteral
-  def str(literal: Literal): StringLiteral = literal.toStringLiteral
-  def decimal(literal: Literal): DecimalLiteral = literal.toDecimalLiteral
+  def bool(literal: Literal): Literal = literal.toBooleanLiteral
+  def str(literal: Literal): Literal = literal.toStringLiteral
+  def decimal(literal: Literal): Literal = literal.toDecimalLiteral
 
   def len(l: Literal): Literal  = l match {
     case StringLiteral(v) => DecimalLiteral(v.length)
