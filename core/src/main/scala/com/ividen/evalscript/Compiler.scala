@@ -26,7 +26,7 @@ abstract class CompiledScript(globals: collection.immutable.Map[String, Literal]
     case BooleanLiteral(x) if x => true
     case _ => false
   }
-
+  protected def compareLiterals(l: Literal,r: Literal ): Literal = if (checkCondition(l == r)) null else l
   protected def getGlobal(n: String, globals: Map[String, Literal]): Literal = globals.getOrElse(n, NullLiteral)
 }
 
@@ -201,7 +201,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     case `if else`(i, e) => processIfElse(blockInfo, i, e)
     case `while do`(e, b, p) => processWhileDo(blockInfo, e, b, p)
     case `do while`(e, b) => processDoWhile(blockInfo, e, b)
-//    case `switch`(e, c, d) => processSwitch(e, c, d)
+    case `switch`(e, c, d) => processSwitch(blockInfo,e, c, d)
     case _: `break` => processBreak(blockInfo)
     case _: `continue` => processContinue(blockInfo)
     case b: `{}` => processBlock(Some(blockInfo), b)
@@ -231,7 +231,39 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     }
 
     addIns(blockLabel)
+  }
 
+  private def processSwitch(blockInfo: BlockInfo, e: Expression, cases: Seq[`case`], default: Option[`{}`]) = {
+    val lastLabel = new LabelNode()
+    val defaultLabel = new LabelNode()
+    val labels: Array[LabelNode] = Array.fill[LabelNode](cases.size)(new LabelNode())
+
+    addIns(new VarInsnNode(ALOAD, 0))
+    processExpression(blockInfo,e)
+
+    val indexedCases = cases.zipWithIndex
+
+    for((c,index) <- indexedCases){
+      processExpression(blockInfo,c.e)
+      compareLiterals(blockInfo)
+      addIns(new InsnNode(DUP),new JumpInsnNode(IFNULL,labels(index)),new VarInsnNode(ALOAD, 0), new InsnNode(SWAP))
+    }
+
+    addIns(new InsnNode(POP),new JumpInsnNode(GOTO,defaultLabel))
+
+    for((c,index) <- indexedCases){
+      val blockLabel = labels(index)
+      val prevMarker = blockInfo.currentLoopMarker
+      blockInfo.currentLoopMarker = Some(blockLabel,lastLabel)
+      addIns(blockLabel)
+      c.b.foreach(processElement(blockInfo,_))
+      blockInfo.currentLoopMarker = prevMarker
+    }
+
+    addIns(defaultLabel)
+    default.foreach(x => {processElement(blockInfo, x); addIns (new JumpInsnNode(GOTO, lastLabel))})
+
+    addIns(lastLabel)
   }
 
   private def processWhileDo(blockInfo: BlockInfo, condition: Expression, block: `{}`, postFix: Option[ScriptElement]): Unit = {
@@ -272,6 +304,9 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     processExpression(blockInfo, c)
     addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "checkCondition", s"(${typeSignature[Literal]})Z"))
   }
+
+  private def compareLiterals(blockInfo: BlockInfo): Unit = addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "compareLiterals", s"(${typeSignature[Literal]}${typeSignature[Literal]})${typeSignature[Literal]}"))
+
   private def createField(l: Literal) = {
     staticFieldCounter += 1
     val n = s"v$staticFieldCounter"
@@ -349,29 +384,15 @@ object ScriptCompiler {
   def main(args: Array[String]) {
     val script =
       """
-        |var i = 10, k = 1, l = 9
-        |
-        |for(var j = 1; j<10; j++ ){
-        |   if(j<5){
-        |      continue
-        |   }
-        |   for(var i = 1;i<10; i++){
-        |     if(i<5){
-        |        continue
+        |var l = 1
+        |switch (l){
+        |  case 1: println("1")
+        |  case 2: {
+        |     println("2")  break
         |     }
-        |     for(k = 1;k<10; k++){
-        |        if(k<5){
-        |           continue
-        |        }
-        |        println(str(j) + " " + str(i) + " " + str(k) )
-        |     }
-        |   }
+        |  default: println("default")
         |}
         |
-        |$result_1 = i++
-        |$result_2 = ++i
-        |$result_3= l--
-        |$result_4 = --l
         |
       """.stripMargin
     println(script)

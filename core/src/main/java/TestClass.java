@@ -16,6 +16,7 @@ public class TestClass extends CompiledScript {
     static final Literal v1 = new DecimalLiteral(BigDecimal.valueOf(10));
     static final Literal v2 = new DecimalLiteral(BigDecimal.valueOf(20));
     static final Literal v3 = new DecimalLiteral(BigDecimal.valueOf(30));
+    static final Literal v4 = new DecimalLiteral(BigDecimal.valueOf(40));
     private Literal g_result;
 
     public TestClass(Map<String, Literal> globals) {
@@ -25,9 +26,17 @@ public class TestClass extends CompiledScript {
 
     @Override
     public void execute() {
-        Literal l = v1;
+       Literal l = v1;
 
-        g_result = v1;
+       if(compareLiterals(l,v2)==null){
+           System.out.println("1");
+       }else if(compareLiterals(l,v3)==null){
+            System.out.println("2");
+       }else if(compareLiterals(l,v4)==null){
+            System.out.println("2");
+        }
+
+
 
     }
 
