@@ -336,7 +336,7 @@ object ScriptCompiler {
   def main(args: Array[String]) {
     val script =
       """
-        |var i = 10, k = 1
+        |var i = 10, k = 1, l = 9
         |
         |for(var j = 1; j<10; j++ ){
         |   for(var i = 1;i<10; i+=1){
@@ -346,6 +346,11 @@ object ScriptCompiler {
         |   }
         |}
         |
+        |$result_1 = i++
+        |$result_2 = ++i
+        |$result_3= l--
+        |$result_4 = --l
+        |
       """.stripMargin
     println(script)
     val s = EvalScriptParser.load(script)
@@ -354,6 +359,7 @@ object ScriptCompiler {
     val instance = cs.getConstructor(classOf[scala.collection.immutable.Map[_, _]]).newInstance(Map.empty[String, Any])
     instance.execute
     println(instance.getGlobals)
+
   }
 }
 

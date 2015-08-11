@@ -13,7 +13,6 @@ object EvalScriptParser extends IfElseParser with RepeatParser with SwitchParser
 }
 
 trait FunctionParser extends RegexParsers{self: ExpressionParser with IdentifierParser =>
-  // todo aguzanov how to return parser error
   def function: Parser[Expression] = idName ~ arguments ^^ { case n ~ a => if (FunctionInvoker.hasMethod(n)) `call`(n, a) else throw new IllegalStateException(s"Unknown function $n with arguments: $a") }
   private def arguments = "("~> repsep(expression,",") <~")"
 }
@@ -49,9 +48,9 @@ trait BreakParser extends RegexParsers{self: KeywordParser =>
   def continue: Parser[`continue`] = continueKeyword ^^ {_ => new `continue`}
 }
 
-trait StatementParser extends RegexParsers { self: ExpressionParser with AssignmentParser with IfElseParser with RepeatParser with SwitchParser with BreakParser=>
+trait StatementParser extends RegexParsers { self: ExpressionParser with AssignmentParser with IfElseParser with RepeatParser with SwitchParser with BreakParser with FunctionParser=>
   def statementList = statements ^^ (`{}`(_))
-  def statement: Parser[ScriptElement] =  break | continue | repeat | switch_case | if_else | assignments | expression | block
+  def statement: Parser[ScriptElement] =  break | continue | repeat | switch_case | if_else | assignments | function | block
   def statements =  statement*
   def block: Parser[ScriptElement]= ("{" ~> statements )<~"}" ^^ (`{}`(_))
 }
@@ -121,8 +120,8 @@ trait AssignmentParser extends RegexParsers { self: ExpressionParser with Identi
   implicit def variableToExpression(v: Variable):Expression = GetVar(v)
 
   def assignments = declareVars | assign | assignPlus |assignMinus |assignTimes |assignDivide |assignRemainder |
-    assignLogicalNot|assignBitwiseNot | assignBitwiseRightShift |
-    assignBitwiseAnd |assignBitwiseXor | assignBitwiseOr | assignLogicalAnd | assignLogicalOr
+    assignLogicalNot|assignBitwiseNot | assignBitwiseRightShift | assignBitwiseAnd |assignBitwiseXor | assignBitwiseOr |
+    assignLogicalAnd | assignLogicalOr | assignPrefixInc | assignPrefixDec | assignPostfixInc |assignPostfixDec
 
   def declareVars : Parser[DeclareVars] = "var" ~> repsep(newVar,",".r) ^^ (DeclareVars(_))
   def assign: Parser[`=`] = variable ~ "=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, a) }
@@ -140,6 +139,10 @@ trait AssignmentParser extends RegexParsers { self: ExpressionParser with Identi
   def assignBitwiseOr: Parser[`=`] = variable ~ "|=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `|`(v, a)) }
   def assignLogicalAnd: Parser[`=`] = variable ~ "&&=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `&&`(v, a)) }
   def assignLogicalOr: Parser[`=`] = variable ~ "||=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `||`(v, a)) }
+  def assignPrefixInc: Parser[`=`] = "++" ~> variable ^^ {case v => `=`(v, `:+`(v, LiteralExpression(DecimalLiteral(BigDecimal(1)))))}
+  def assignPrefixDec: Parser[`=`] = "--" ~> variable  ^^ {case v => `=`(v, `:-`(v, LiteralExpression(DecimalLiteral(BigDecimal(1)))))}
+  def assignPostfixInc: Parser[`=`] = variable <~ "++" ^^ {case v => `=`(v, `:+`(v, LiteralExpression(DecimalLiteral(BigDecimal(1)))))}
+  def assignPostfixDec: Parser[`=`] = variable <~ "--" ^^ {case v => `=`(v, `:-`(v, LiteralExpression(DecimalLiteral(BigDecimal(1)))))}
   private def newVar: Parser[`=`] = assign | nullVar
   private def nullVar: Parser[`=`] = variable ^^ { case v => `=`(v, LiteralExpression(NullLiteral)) }
 }
