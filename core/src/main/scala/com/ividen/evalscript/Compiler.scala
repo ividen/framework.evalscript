@@ -45,9 +45,11 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
 
   case class BlockInfo(start: LabelNode, end: LabelNode, index: Int, prevBlock: Option[BlockInfo]) {
     private val localVarsMapping: collection.mutable.Map[String, Int] = new collection.mutable.HashMap[String, Int]
+    var currentLoopMarker : Option[LabelNode Pair LabelNode] = None
 
     def apply(n: String): Option[Int] = localVarsMapping.get(n).fold(prevBlock.flatMap(b => b.apply(n)))(Some(_))
     def define(n: String, index: Int): Unit = localVarsMapping += (n -> index)
+    def loopMarker:  Option[LabelNode Pair LabelNode] =  currentLoopMarker.fold(prevBlock.flatMap(b => b.loopMarker))(Some(_))
   }
 
   private val cn = new ClassNode(ASM4)
@@ -110,7 +112,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   }
 
 
-  private def processBlock(parentBlock: Option[BlockInfo],b: `{}`) = {
+  private def processBlock(parentBlock: Option[BlockInfo], b: `{}`) = {
     val blockInfo = createBlockInfo(parentBlock)
     addIns(blockInfo.start)
     b.items.foreach(processElement(blockInfo, _))
@@ -199,12 +201,14 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     case `if else`(i, e) => processIfElse(blockInfo, i, e)
     case `while do`(e, b, p) => processWhileDo(blockInfo, e, b, p)
     case `do while`(e, b) => processDoWhile(blockInfo, e, b)
-    //    case `switch`(e, c, d) => processSwitch(e, c, d)
-    //    case _: `break` => this.break
-    //    case _: `continue` => this.breakContinue
-    case b: `{}` => processBlock(Some(blockInfo),b)
+//    case `switch`(e, c, d) => processSwitch(e, c, d)
+    case _: `break` => processBreak(blockInfo)
+    case _: `continue` => processContinue(blockInfo)
+    case b: `{}` => processBlock(Some(blockInfo), b)
   }
 
+  private def processContinue(blockInfo: BlockInfo): Unit = blockInfo.loopMarker.foreach(x => addIns(new JumpInsnNode(GOTO, x._1)))
+  private def processBreak(blockInfo: BlockInfo): Unit =   blockInfo.loopMarker.foreach(x => addIns(new JumpInsnNode(GOTO, x._2)))
   private def processIfElse(blockInfo: BlockInfo, _if: `if`, _else: Seq[`else`]) = {
     val blockLabel = new LabelNode()
     var lastLabel = new LabelNode()
@@ -233,11 +237,13 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private def processWhileDo(blockInfo: BlockInfo, condition: Expression, block: `{}`, postFix: Option[ScriptElement]): Unit = {
     val exitLabel = new LabelNode()
     val conditionLabel = new LabelNode()
+    val postFixLabel = new LabelNode()
 
     addIns(conditionLabel)
     checkCondition(blockInfo, condition)
     addIns(new JumpInsnNode(IFEQ, exitLabel))
-    processElement(blockInfo, block)
+    processLoop(blockInfo,(postFixLabel,exitLabel),block)
+    addIns(postFixLabel)
     postFix.foreach(processElement(blockInfo, _))
     addIns(new JumpInsnNode(GOTO, conditionLabel))
     addIns(exitLabel)
@@ -248,9 +254,16 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     val conditionLabel = new LabelNode()
 
     addIns(conditionLabel)
-    processElement(blockInfo, block)
+    processLoop(blockInfo,(conditionLabel,exitLabel),block)
     checkCondition(blockInfo, condition)
     addIns(new JumpInsnNode(IFEQ, exitLabel), new JumpInsnNode(GOTO, conditionLabel), exitLabel)
+  }
+
+  private def processLoop(blockInfo: BlockInfo,labels: (LabelNode,LabelNode), block: `{}`) = {
+    val prev = blockInfo.currentLoopMarker
+    blockInfo.currentLoopMarker = Some(labels)
+    processElement(blockInfo, block)
+    blockInfo.currentLoopMarker = prev
   }
 
   private def getFieldName(l: Literal) = literals.getOrElse(l, createField(l))
@@ -297,7 +310,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private def processGetLocalVar(blockInfo: BlockInfo, v: LocalVariable): Unit = {
     if (blockInfo(v.name).isEmpty)
       assignLocalVar(blockInfo, v, LiteralExpression(NullLiteral))
-    blockInfo(v.name).foreach(x => addIns(new VarInsnNode(ALOAD,x)))
+    blockInfo(v.name).foreach(x => addIns(new VarInsnNode(ALOAD, x)))
   }
 
   private def processBinaryExpression(blockInfo: BlockInfo, v: BinaryExpression): Unit = {
@@ -339,8 +352,17 @@ object ScriptCompiler {
         |var i = 10, k = 1, l = 9
         |
         |for(var j = 1; j<10; j++ ){
-        |   for(var i = 1;i<10; i+=1){
-        |     for(k = 1;k<10;k+=1){
+        |   if(j<5){
+        |      continue
+        |   }
+        |   for(var i = 1;i<10; i++){
+        |     if(i<5){
+        |        continue
+        |     }
+        |     for(k = 1;k<10; k++){
+        |        if(k<5){
+        |           continue
+        |        }
         |        println(str(j) + " " + str(i) + " " + str(k) )
         |     }
         |   }
