@@ -16,4 +16,5 @@ libraryDependencies ++= Seq("org.scala-lang" % "scala-compiler" % scalaVersion.v
   , "org.ow2.asm" % "asm-util" % "4.0"
   , "org.ow2.asm" % "asm-commons" % "4.0"
   , "commons-codec" % "commons-codec" % "1.10"
+  , "org.scalatest" % "scalatest_2.10" % "3.0.0-M7" % Test
 )

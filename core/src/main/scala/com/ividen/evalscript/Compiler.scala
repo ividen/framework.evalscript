@@ -33,7 +33,7 @@ abstract class CompiledScript(globals: collection.immutable.Map[String, Literal]
 object Generator {
   private val mapping: Map[Class[_ <: Expression], String] = Map[Class[_ <: Expression], String](
     classOf[`[]`] -> "apply", classOf[`:+`] -> "$plus", classOf[`:-`] -> "$minus", classOf[`/`] -> "$div", classOf[`*`] -> "$times", classOf[`%`] -> "$percent", classOf[`!:`] -> "unary_$bang"
-    , classOf[`~:`] -> "unary_$tilde", classOf[`-:`] -> "unary_$minus", classOf[`+:`] -> "unary_$plus", classOf[`<<`] -> "$less$less", classOf[`>>`] -> "$greater$eq", classOf[`&`] -> "$amp"
+    , classOf[`~:`] -> "unary_$tilde", classOf[`-:`] -> "unary_$minus", classOf[`+:`] -> "unary_$plus", classOf[`<<`] -> "$less$less", classOf[`>>`] -> "$greater$greater", classOf[`&`] -> "$amp"
     , classOf[`^`] -> "$up", classOf[`|`] -> "$bar", classOf[`&&`] -> "$amp$amp", classOf[`||`] -> "$bar$bar", classOf[`:==`] -> "$eq$eq", classOf[`:!=`] -> "$bang$eq", classOf[`<`] -> "$less"
     , classOf[`>`] -> "$greater", classOf[`>=`] -> "$greater$eq", classOf[`<=`] -> "$less$eq")
 }
@@ -164,7 +164,10 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     val m = new MethodNode(ACC_PUBLIC, "getGlobals", s"()${typeSignature[scala.collection.immutable.Map[String, Literal]]}", null, Array.empty)
     addIns(m, new TypeInsnNode(NEW, typeString[java.util.HashMap[_, _]]), new InsnNode(DUP), new MethodInsnNode(INVOKESPECIAL, typeString[java.util.HashMap[_, _]], "<init>", "()V"), new VarInsnNode(ASTORE, 1))
     for (g <- globals) {
-      addIns(m, new VarInsnNode(ALOAD, 1), new LdcInsnNode(g), new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_$g", typeSignature[Literal])
+      addIns(m, new VarInsnNode(ALOAD, 1), new LdcInsnNode(g)
+        , new FieldInsnNode(GETSTATIC, s"${typeString[Literal]}$$", "MODULE$", s"L${typeString[Literal]}$$;")
+        , new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_$g", typeSignature[Literal])
+        , new MethodInsnNode(INVOKEVIRTUAL, s"${typeString[Literal]}$$", "literalToVal", s"(${typeSignature[Literal]})${typeSignature[Any]}")
         , new MethodInsnNode(INVOKEINTERFACE, typeString[java.util.Map[_, _]], "put", s"(${typeSignature[Object]}${typeSignature[Object]})${typeSignature[Object]}"), new InsnNode(POP))
     }
 
@@ -319,7 +322,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private def processExpression(blockInfo: BlockInfo, e: Expression): Unit = {
     e match {
       case LiteralExpression(l: Literal) => fieldGet(l)
-      case v: UnaryExpression => processExpression(blockInfo, v.r)
+      case v: UnaryExpression =>     processUnaryExpression(blockInfo, v)
       case v: BinaryExpression => processBinaryExpression(blockInfo, v)
       case GetVar(v: LocalVariable) => processGetLocalVar(blockInfo, v)
       case GetVar(v: GlobalVairable) => processGetGlobalVar(v)
@@ -331,7 +334,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     }
   }
 
-  def processCall(blockInfo: BlockInfo, n: String, a: Seq[Expression]): Unit = {
+  private def processCall(blockInfo: BlockInfo, n: String, a: Seq[Expression]): Unit = {
     addIns(new FieldInsnNode(GETSTATIC, typeString[Functions] + "$", "MODULE$", s"L${typeString[Functions]}$$;"))
     a.reverse.foreach(processExpression(blockInfo, _))
     addIns(new MethodInsnNode(INVOKEVIRTUAL, typeString[Functions] + "$", n, s"(${typeSignature[Literal] * a.length})${if (FunctionInvoker.isReturnLiteral(n)) typeSignature[Literal] else "V"}"))
@@ -351,7 +354,12 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private def processBinaryExpression(blockInfo: BlockInfo, v: BinaryExpression): Unit = {
     processExpression(blockInfo, v.l);
     processExpression(blockInfo, v.r);
-    invokeOperator(v.getClass.asInstanceOf[Class[_ <: Expression]])
+    invokeBinaryOperator(v.getClass.asInstanceOf[Class[_ <: Expression]])
+  }
+
+  private def processUnaryExpression(blockInfo: BlockInfo, v: UnaryExpression): Unit = {
+    processExpression(blockInfo, v.r)
+    invokeUnaryOperator(v.getClass.asInstanceOf[Class[_ <: Expression]])
   }
 
   private def processAssignment(blockInfo: BlockInfo, assignment: `=`) = (assignment.l, assignment.r) match {
@@ -364,14 +372,19 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     }
   }
 
-  private def invokeOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, typeString[Literal], mapping.getOrElse(c, ""), s"(${typeSignature[Literal]})${typeSignature[Literal]}"))
+  private def invokeBinaryOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, typeString[Literal], mapping.getOrElse(c, ""), s"(${typeSignature[Literal]})${typeSignature[Literal]}"))
+  private def invokeUnaryOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, typeString[Literal], mapping.getOrElse(c, ""), s"()${typeSignature[Literal]}"))
   private def fieldGet(l: Literal) = addIns(new FieldInsnNode(GETSTATIC, cn.name, getFieldName(l), typeSignature[Literal]))
 }
 
 
 object ScriptCompiler {
-
   def compile(s: Script) = new Generator(s.block, generateClassName(s)).compile
+  def execute[T<:CompiledScript](c: Class[T], globals: Map[String,Any]): Map[String,Any] = {
+    val instance = c.getConstructor(classOf[Map[_, _]]).newInstance(globals)
+    instance.execute
+    instance.getGlobals
+  }
 
   private def generateClassName(s: Script): String = {
     val md = MessageDigest.getInstance("MD5")
@@ -399,10 +412,7 @@ object ScriptCompiler {
     val s = EvalScriptParser.load(script)
     val cs = compile(s)
 
-    val instance = cs.getConstructor(classOf[scala.collection.immutable.Map[_, _]]).newInstance(Map.empty[String, Any])
-    instance.execute
-    println(instance.getGlobals)
-
+    println(execute(cs,Map.empty[String, Any]))
   }
 }
 

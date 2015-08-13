@@ -107,7 +107,7 @@ object Interpreter {
       case `-:`(r) => -processExpression(r)
       case `+:`(r) => +processExpression(r)
       case `++:`(v) => val result = processExpression(GetVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
-      case `--:`(v) => val result = processExpression(GetVar(v)) + DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
+      case `--:`(v) => val result = processExpression(GetVar(v)) - DecimalLiteral(BigDecimal(1)); processAssignment(`=`(v, LiteralExpression(result))); result
       case `:++`(v) => val result = processExpression(GetVar(v)); processAssignment(`=`(v, LiteralExpression(result + DecimalLiteral(BigDecimal(1))))); result
       case `:--`(v) => val result = processExpression(GetVar(v)); processAssignment(`=`(v, LiteralExpression(result - DecimalLiteral(BigDecimal(1))))); result
       case `>>`(l, r) => processExpression(l) >> processExpression(r)
@@ -135,29 +135,17 @@ object Interpreter {
 
   }
 
-  def process(script: Script, globalContext: GlobalContext) = new ScriptExecution(script, globalContext).process
+  def execute(script: Script, globalContext: GlobalContext) = new ScriptExecution(script, globalContext).process
 }
 
 class GlobalContext(initVars: Map[String, _] = Map.empty) {
 
-  var vars = mutable.Map[String, Literal]() ++ initVars.map(e => e._1 -> valToLiteral(e._2))
+  private val _vars = mutable.Map[String, Literal]() ++ initVars.map(e => e._1 -> Literal.valToLiteral(e._2))
+  def vars : Map[String,Any] =_vars.map(x => x._1 -> Literal.literalToVal(x._2)).toMap
   def apply(v: GlobalVairable): Literal = apply(v.name)
-  def apply(n: String) = vars.getOrElse(n, NullLiteral)
+  def apply(n: String) = _vars.getOrElse(n, NullLiteral)
   def set(v: GlobalVairable, value: Literal):Unit = set(v.name, value)
-  def set(v: String, value: Literal):Unit = vars.put(v, value)
-  private def valToLiteral(value: Any) = value match {
-    case s: String => StringLiteral(s)
-    case x: Int => DecimalLiteral(BigDecimal(x))
-    case x: Short => DecimalLiteral(BigDecimal(x))
-    case x: Long => DecimalLiteral(BigDecimal(x))
-    case x: Byte => DecimalLiteral(BigDecimal(x))
-    case x: Float => DecimalLiteral(BigDecimal(x))
-    case x: Double => DecimalLiteral(BigDecimal(x))
-    case null => NullLiteral
-    case x: Boolean => BooleanLiteral(x)
-    case l: Literal => l
-    case x => throw new IllegalArgumentException(s"Can't use $value for emaluation!")
-  }
+  def set(v: String, value: Literal):Unit = _vars.put(v, value)
 }
 
 case class LocalContext(parent: Option[LocalContext] = None) {

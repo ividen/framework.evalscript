@@ -40,11 +40,11 @@ class EvalscriptElseIfCalculations {
   def template(s: String): Script = EvalScriptParser.load(s)
 
   @Benchmark
-  def interp_if_else_10(): Unit =  Interpreter.process(t10, new GlobalContext(params10))
+  def interp_if_else_10(): Unit =  Interpreter.execute(t10, new GlobalContext(params10))
   @Benchmark
-  def interp_if_else_100(): Unit = Interpreter.process(t100, new GlobalContext(params100))
+  def interp_if_else_100(): Unit = Interpreter.execute(t100, new GlobalContext(params100))
   @Benchmark
-  def interp_if_else_1000(): Unit = Interpreter.process(t1000, new GlobalContext(params1000))
+  def interp_if_else_1000(): Unit = Interpreter.execute(t1000, new GlobalContext(params1000))
   @Benchmark
   def compiled_if_else_10(): Unit =  ct10.newInstance(params10).execute
   @Benchmark

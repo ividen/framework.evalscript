@@ -105,6 +105,26 @@ sealed trait Literal extends ExpressionElement {
   private def unsupportedOperation[U]: U = throw new UnsupportedOperationException("Operation is not supported!")
 }
 
+object Literal{
+  def literalToVal(l: Literal):Any = l match {
+    case v: ArrayLiteral => v.value.map(literalToVal)
+    case _ => l.value
+  }
+  def valToLiteral(value: Any) = value match {
+    case s: String => StringLiteral(s)
+    case x: Int => DecimalLiteral(BigDecimal(x))
+    case x: Short => DecimalLiteral(BigDecimal(x))
+    case x: Long => DecimalLiteral(BigDecimal(x))
+    case x: Byte => DecimalLiteral(BigDecimal(x))
+    case x: Float => DecimalLiteral(BigDecimal(x))
+    case x: Double => DecimalLiteral(BigDecimal(x))
+    case null => NullLiteral
+    case x: Boolean => BooleanLiteral(x)
+    case l: Literal => l
+    case x => throw new IllegalArgumentException(s"Can't use $value for emaluation!")
+  }
+}
+
 object NullLiteral extends Literal {
   type T = Unit
 
@@ -143,7 +163,7 @@ case class DecimalLiteral(value: BigDecimal) extends Literal {
   override def /(l: Literal): Literal = DecimalLiteral(this.value / l.toDecimalLiteral.value)
   override def %(l: Literal): Literal = DecimalLiteral(this.value % l.toDecimalLiteral.value)
   override def <<(l: Literal): Literal = DecimalLiteral(BigDecimal(this.value.toBigInt() << l.toDecimalLiteral.value.toInt))
-  override def >>(l: Literal): Literal = DecimalLiteral(BigDecimal(this.value.toBigInt() >> l.toDecimalLiteral.value.toInt))
+  override def >>(l: Literal): Literal =  DecimalLiteral(BigDecimal(this.value.toBigInt() >> l.toDecimalLiteral.value.toInt))
   override def unary_! : Literal = BooleanLiteral(if (value == 0) true else false)
   override def unary_~ : Literal = DecimalLiteral(BigDecimal(~value.toBigInt()))
   override def unary_- : Literal = DecimalLiteral(-value)
@@ -167,7 +187,7 @@ case class StringLiteral(value: String) extends Literal{
   type T = String
 
   override def +(l: Literal): Literal = StringLiteral(this.value + l.toStringLiteral.value)
-  override def *(l: Literal): Literal = StringLiteral((1 to l.toDecimalLiteral.value.toInt).foldLeft[String](this.value)((x1,x2) => x1 + value))
+  override def *(l: Literal): Literal = StringLiteral((1 to l.toDecimalLiteral.value.toInt-1).foldLeft[String](this.value)((x1,x2) => x1 + value))
   override def ==(l: Literal) : Literal = BooleanLiteral(value == l.toStringLiteral.value)
   override def !=(l: Literal) : Literal = BooleanLiteral(value != l.toStringLiteral.value)
   override def <(l: Literal) : Literal = BooleanLiteral(value < l.toStringLiteral.value)

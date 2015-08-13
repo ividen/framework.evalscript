@@ -63,7 +63,7 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
   def postfixInc: Parser[E] = variable <~ "++" ^^ `:++`
   def postfixDec: Parser[E] = variable <~ "--" ^^ `:--`
 
-  def index: Parser[E=>E] =  "[" ~ factor ~ "]" ^^ { case  _ ~ r ~ _  => `[]`(_, r) }
+  def index: Parser[E=>E] =  "[" ~ expression ~ "]" ^^ { case  _ ~ r ~ _  => `[]`(_, r) }
 
   def logicalNot: Parser[E] = "!" ~> indexGroup ^^ `!:`
   def bitwiseNot: Parser[E] = "~" ~> indexGroup ^^ `~:`
@@ -79,8 +79,8 @@ trait ExpressionParser extends RegexParsers {self: LiteralParser with Identifier
   def minus: Parser[E => E] = ("-" ~> multiplyGroup) ^^ { case b => `:-`(_, b) }
   def plus: Parser[E => E] = ("+" ~> multiplyGroup) ^^ { case b => `:+`(_, b) }
 
-  def bitwiseLeftShift: Parser[E => E] = "<<" ~> addGroup ^^ { case b => `>>`(_, b) }
-  def bitwiseRightShift: Parser[E => E] = ">>" ~> addGroup ^^ { case b => `<<`(_, b) }
+  def bitwiseLeftShift: Parser[E => E] = "<<" ~> addGroup ^^ { case b => `<<`(_, b) }
+  def bitwiseRightShift: Parser[E => E] = ">>" ~> addGroup ^^ { case b => `>>`(_, b) }
 
   def lessThen: Parser[E => E] = "<" ~> bitwiseShiftGroup ^^ { case b => `<`(_, b) }
   def lessThenOrEq: Parser[E => E] = "<=" ~> bitwiseShiftGroup ^^ { case b => `<=`(_, b) }
