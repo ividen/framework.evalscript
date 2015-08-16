@@ -120,7 +120,7 @@ trait AssignmentParser extends RegexParsers { self: ExpressionParser with Identi
   implicit def variableToExpression(v: Variable):Expression = GetVar(v)
 
   def assignments = declareVars | assign | assignPlus |assignMinus |assignTimes |assignDivide |assignRemainder |
-    assignLogicalNot|assignBitwiseNot | assignBitwiseRightShift | assignBitwiseAnd |assignBitwiseXor | assignBitwiseOr |
+    assignLogicalNot|assignBitwiseNot | assignBitwiseLeftShift | assignBitwiseRightShift | assignBitwiseAnd |assignBitwiseXor | assignBitwiseOr |
     assignLogicalAnd | assignLogicalOr | assignPrefixInc | assignPrefixDec | assignPostfixInc |assignPostfixDec
 
   def declareVars : Parser[DeclareVars] = "var" ~> repsep(newVar,",".r) ^^ (DeclareVars(_))
@@ -132,8 +132,8 @@ trait AssignmentParser extends RegexParsers { self: ExpressionParser with Identi
   def assignRemainder: Parser[`=`] = variable ~ "%=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `%`(v, a)) }
   def assignLogicalNot: Parser[`=`] = variable ~ "!=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `!:`(a)) }
   def assignBitwiseNot: Parser[`=`] = variable ~ "~=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `~:`(a)) }
-  def assignBitwiseLeftShift: Parser[`=`] = variable ~ "<<=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `>>`(v, a)) }
-  def assignBitwiseRightShift: Parser[`=`] = variable ~ ">>=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `<<`(v, a)) }
+  def assignBitwiseLeftShift: Parser[`=`] = variable ~ "<<=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `<<`(v, a)) }
+  def assignBitwiseRightShift: Parser[`=`] = variable ~ ">>=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `>>`(v, a)) }
   def assignBitwiseAnd: Parser[`=`] = variable ~ "&=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `&`(v, a)) }
   def assignBitwiseXor: Parser[`=`] = variable ~ "^=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `^`(v, a)) }
   def assignBitwiseOr: Parser[`=`] = variable ~ "|=" ~ expression ^^ { case v ~ _ ~ a => `=`(v, `|`(v, a)) }

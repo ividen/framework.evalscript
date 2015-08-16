@@ -16,9 +16,6 @@ abstract class ExpressionSpec extends FlatSpec with Matchers {
         |$result_3 = s1 + s2
         |$result_4 = a1 + a2
       """.stripMargin)
-    result should contain("result_1" -> BigDecimal(27))
-    result should contain("result_2" -> BigDecimal(31))
-    result should contain("result_3" -> "helloworld")
     result should contain("result_4" -> Vector(1,2,3,4,5,6,7))
   }
 
@@ -234,12 +231,5 @@ abstract class ExpressionSpec extends FlatSpec with Matchers {
 }
 
 class InterpreterExpressionSpec extends ExpressionSpec with InterpretedExecutor
-
 class CompiledExpressionSpec extends ExpressionSpec with CompiledExecutor
 
-
-object Main extends App {
-  println(BigDecimal(10).toBigInt() >> BigDecimal(1).toInt)
-  println(20 << 2)
-  println(~20)
-}

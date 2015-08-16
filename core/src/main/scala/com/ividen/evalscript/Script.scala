@@ -110,7 +110,7 @@ object Literal{
     case v: ArrayLiteral => v.value.map(literalToVal)
     case _ => l.value
   }
-  def valToLiteral(value: Any) = value match {
+  def valToLiteral(value: Any): Literal = value match {
     case s: String => StringLiteral(s)
     case x: Int => DecimalLiteral(BigDecimal(x))
     case x: Short => DecimalLiteral(BigDecimal(x))
@@ -121,6 +121,7 @@ object Literal{
     case null => NullLiteral
     case x: Boolean => BooleanLiteral(x)
     case l: Literal => l
+    case a : Vector[_] => ArrayLiteral(a.map(valToLiteral))
     case x => throw new IllegalArgumentException(s"Can't use $value for emaluation!")
   }
 }

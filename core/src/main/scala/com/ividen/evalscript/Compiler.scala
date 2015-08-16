@@ -2,6 +2,7 @@ package com.ividen.evalscript
 
 import java.io.{FileOutputStream, File}
 import java.security.MessageDigest
+import java.util
 
 import org.apache.commons.codec.binary.{Hex, Base64, StringUtils}
 import org.objectweb.asm.tree._
@@ -15,7 +16,7 @@ import scala.collection.parallel.mutable
 import scala.reflect.ClassTag
 
 
-abstract class CompiledScript(globals: collection.immutable.Map[String, Literal]) {
+abstract class CompiledScript(globals: collection.immutable.Map[String, Any]) {
   def execute
 
   def getGlobals: Map[String, Literal]
@@ -27,7 +28,7 @@ abstract class CompiledScript(globals: collection.immutable.Map[String, Literal]
     case _ => false
   }
   protected def compareLiterals(l: Literal,r: Literal ): Literal = if (checkCondition(l == r)) null else l
-  protected def getGlobal(n: String, globals: Map[String, Literal]): Literal = globals.getOrElse(n, NullLiteral)
+  protected def getGlobal(n: String, globals: Map[String, Any]): Literal = Literal.valToLiteral(globals.getOrElse(n, NullLiteral))
 }
 
 object Generator {
@@ -56,7 +57,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private val exec = new MethodNode(ACC_PUBLIC, "execute", "()V", null, Array.empty)
   private val methods: java.util.List[MethodNode] = cn.methods.asInstanceOf[java.util.List[MethodNode]]
   private val fields: java.util.List[FieldNode] = cn.fields.asInstanceOf[java.util.List[FieldNode]]
-  private val literals: collection.mutable.Map[Literal, String] = new collection.mutable.HashMap[Literal, String]()
+  private val literals: collection.mutable.Map[Literal, String] = new collection.mutable.LinkedHashMap[Literal, String]()
   private val globals: collection.mutable.Set[String] = new collection.mutable.HashSet[String]()
   private val localVars: java.util.List[LocalVariableNode] = exec.localVariables.asInstanceOf[java.util.List[LocalVariableNode]]
 
@@ -95,20 +96,32 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
 
   private def initStaticVars = {
     if (!literals.isEmpty) {
+      preProcessLiterals
       val m = new MethodNode(ACC_STATIC, "<clinit>", "()V", null, Array.empty)
-      for (e <- literals) {
-        //todo aguzanov arrayliteral
-        e._1 match {
-          case DecimalLiteral(v) => initDecimal(m, e._2, v)
-          case StringLiteral(v) => initString(m, e._2, v)
-          case BooleanLiteral(v) => initBoolean(m, e._2, v)
-          case ArrayLiteral(v) => println(v)
-          case _ =>
-        }
+      for (e <- literals.clone()) {
+        initLiteral(m, e)
       }
       m.instructions.add(new InsnNode(RETURN))
       methods.add(m)
     }
+  }
+
+  private def preProcessLiterals(): Unit ={
+    val result: collection.mutable.Map[Literal, String] = new collection.mutable.LinkedHashMap
+
+    def preProcess(x: (Literal,String)): Unit =  x._1 match   {
+      case l: ArrayLiteral => {
+        for(e <- l.value if !result.contains(e)) {
+          preProcess(e,createField(l,result))
+        }
+        result += x
+      }
+      case _ => result += x
+    }
+
+    literals.foreach(preProcess)
+    literals.clear()
+    literals ++= result
   }
 
 
@@ -126,8 +139,18 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private def addIns(il: AbstractInsnNode*) = il.foreach(exec.instructions.add)
   private def addIns(m: MethodNode, il: AbstractInsnNode*) = il.foreach(m.instructions.add)
 
+  private def initLiteral(m: MethodNode, e: (Literal, String)): Unit = {
+    e._1 match {
+      case DecimalLiteral(v) => initDecimal(m, e._2, v)
+      case StringLiteral(v) => initString(m, e._2, v)
+      case BooleanLiteral(v) => initBoolean(m, e._2, v)
+      case ArrayLiteral(v) => initArray(m,e._2,v)
+      case _ =>
+    }
+  }
+
   private def initDecimal(m: MethodNode, n: String, v: BigDecimal): Unit = addIns(m, new TypeInsnNode(NEW, typeString[DecimalLiteral]), new InsnNode(DUP)
-    , new LdcInsnNode(v.longValue()), new MethodInsnNode(INVOKESTATIC, typeString[BigDecimal], "long2bigDecimal", s"(J)${typeSignature[BigDecimal]}")
+    , new LdcInsnNode(v.toString()), new MethodInsnNode(INVOKESTATIC, typeString[BigDecimal], "long2bigDecimal", s"(J)${typeSignature[BigDecimal]}")
     , new MethodInsnNode(INVOKESPECIAL, typeString[DecimalLiteral], "<init>", s"(${typeSignature[BigDecimal]})V"), new FieldInsnNode(PUTSTATIC, cn.name, n, typeSignature[Literal]))
 
   private def initString(m: MethodNode, n: String, v: String): Unit = addIns(m, new TypeInsnNode(NEW, typeString[StringLiteral]), new InsnNode(DUP)
@@ -139,6 +162,20 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     , new LdcInsnNode(v)
     , new MethodInsnNode(INVOKESPECIAL, typeString[BooleanLiteral], "<init>", s"(Z)V")
     , new FieldInsnNode(PUTSTATIC, cn.name, n, typeSignature[Literal]))
+
+  private def initArray(m: MethodNode, n: String, v: Vector[Literal]) = {
+    addIns(m, new FieldInsnNode(GETSTATIC, s"${typeString[ArrayLiteral]}$$", "MODULE$", s"L${typeString[ArrayLiteral]}$$;")
+      , new FieldInsnNode(GETSTATIC, "scala/collection/JavaConversions$", "MODULE$", "Lscala/collection/JavaConversions$;"), new IntInsnNode(BIPUSH, v.size), new TypeInsnNode(ANEWARRAY, typeString[Literal]))
+    for (i <- 0 to v.size-1) {
+      addIns(m, new InsnNode(DUP), new IntInsnNode(BIPUSH, i)  ,new FieldInsnNode(GETSTATIC, cn.name, getFieldName(v(i)), typeSignature[Literal])  , new InsnNode(AASTORE))
+    }
+
+    addIns(m, new MethodInsnNode(INVOKESTATIC, typeString[util.Arrays], "asList", s"([Ljava/lang/Object;)${typeSignature[java.util.List[_]]}")
+      , new MethodInsnNode(INVOKEVIRTUAL, "scala/collection/JavaConversions$", "asScalaBuffer", s"(${typeSignature[java.util.List[_]]})${typeSignature[collection.mutable.Buffer[_]]}")
+      , new MethodInsnNode(INVOKEINTERFACE, typeString[collection.mutable.Buffer[_]], "toVector", s"()${typeSignature[Vector[_]]}")
+      , new MethodInsnNode(INVOKEVIRTUAL, s"${typeString[ArrayLiteral]}$$", "apply", s"(${typeSignature[Vector[_]]})${typeSignature[ArrayLiteral]}")
+      , new FieldInsnNode(PUTSTATIC, cn.name, n, typeSignature[Literal]))
+  }
 
   private def initClassName: Unit = cn.visit(V1_5, ACC_PUBLIC, name, null, typeString[CompiledScript], Array.empty)
   private def typeSignature[T](implicit tag: ClassTag[T]) = "L" + typeString[T](tag) + ";"
@@ -310,7 +347,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
 
   private def compareLiterals(blockInfo: BlockInfo): Unit = addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "compareLiterals", s"(${typeSignature[Literal]}${typeSignature[Literal]})${typeSignature[Literal]}"))
 
-  private def createField(l: Literal) = {
+  private def createField(l: Literal, map: collection.mutable.Map[Literal,String] = literals) = {
     staticFieldCounter += 1
     val n = s"v$staticFieldCounter"
     val node = new FieldNode(ACC_PUBLIC + ACC_FINAL + ACC_STATIC, s"v$staticFieldCounter", typeSignature[Literal], null, null)
