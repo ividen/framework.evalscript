@@ -1,4 +1,4 @@
-package com.viaden.crm.core.calculation
+package com.viaden.crm.core.calculation.ifelse
 
 import com.ividen.evalscript._
 import org.openjdk.jmh.annotations.{Benchmark, Scope, State}

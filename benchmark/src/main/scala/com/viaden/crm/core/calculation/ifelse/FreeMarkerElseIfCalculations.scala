@@ -1,12 +1,11 @@
-package com.viaden.crm.core.calculation
+package com.viaden.crm.core.calculation.ifelse
 
-import java.io.{StringReader, OutputStreamWriter, ByteArrayOutputStream}
+import java.io.{ByteArrayOutputStream, OutputStreamWriter, StringReader}
 
 import freemarker.template.{Configuration, Template}
 import org.openjdk.jmh.annotations.{Benchmark, Scope, State}
 
 import scala.collection.mutable
-import scala.collection.JavaConversions._
 
 
 @State(Scope.Benchmark)
@@ -48,7 +47,7 @@ class FreeMarkerElseIfCalculations {
     val m = new java.util.HashMap[String, Any](params.size)
     params.foreach((x) => m.put(x._1, x._2))
     val baos: ByteArrayOutputStream = new ByteArrayOutputStream()
-    val out = new OutputStreamWriter(baos);
+    val out = new OutputStreamWriter(baos)
     val env = t.createProcessingEnvironment(m, out)
     env.process()
     out.flush()

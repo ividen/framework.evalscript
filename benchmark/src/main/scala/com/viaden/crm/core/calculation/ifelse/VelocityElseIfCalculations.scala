@@ -1,10 +1,10 @@
-package com.viaden.crm.core.calculation
+package com.viaden.crm.core.calculation.ifelse
 
 import java.io.{ByteArrayOutputStream, OutputStreamWriter, StringReader}
 
 import org.apache.velocity.runtime.RuntimeSingleton
 import org.apache.velocity.{Template, VelocityContext}
-import org.openjdk.jmh.annotations.{Scope, State, Benchmark}
+import org.openjdk.jmh.annotations.{Benchmark, Scope, State}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -54,13 +54,13 @@ class VelocityElseIfCalculations {
   }
 
   def template(settings: String): Template = {
-    val runtimeServices = RuntimeSingleton.getRuntimeServices();
-    val reader = new StringReader(settings);
-    val node = runtimeServices.parse(reader, "Template name");
-    val template = new Template();
-    template.setRuntimeServices(runtimeServices);
-    template.setData(node);
-    template.initDocument();
+    val runtimeServices = RuntimeSingleton.getRuntimeServices()
+    val reader = new StringReader(settings)
+    val node = runtimeServices.parse(reader, "Template name")
+    val template = new Template()
+    template.setRuntimeServices(runtimeServices)
+    template.setData(node)
+    template.initDocument()
     template
   }
 
