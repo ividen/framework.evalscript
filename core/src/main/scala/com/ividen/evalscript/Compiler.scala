@@ -150,7 +150,10 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   }
 
   private def initDecimal(m: MethodNode, n: String, v: BigDecimal): Unit = addIns(m, new TypeInsnNode(NEW, typeString[DecimalLiteral]), new InsnNode(DUP)
-    , new LdcInsnNode(v.toString()), new MethodInsnNode(INVOKESTATIC, typeString[BigDecimal], "long2bigDecimal", s"(J)${typeSignature[BigDecimal]}")
+    , new TypeInsnNode(NEW, typeString[BigDecimal]), new InsnNode(DUP)
+    , new TypeInsnNode(NEW, typeString[java.math.BigDecimal]), new InsnNode(DUP)
+    , new LdcInsnNode(v.toString()), new MethodInsnNode(INVOKESPECIAL, typeString[java.math.BigDecimal], "<init>", s"(${typeSignature[String]})V")
+    , new MethodInsnNode(INVOKESPECIAL, typeString[BigDecimal], "<init>", s"(${typeSignature[java.math.BigDecimal]})V")
     , new MethodInsnNode(INVOKESPECIAL, typeString[DecimalLiteral], "<init>", s"(${typeSignature[BigDecimal]})V"), new FieldInsnNode(PUTSTATIC, cn.name, n, typeSignature[Literal]))
 
   private def initString(m: MethodNode, n: String, v: String): Unit = addIns(m, new TypeInsnNode(NEW, typeString[StringLiteral]), new InsnNode(DUP)

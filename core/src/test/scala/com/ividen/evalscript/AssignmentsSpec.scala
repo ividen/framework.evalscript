@@ -27,40 +27,30 @@ abstract class AssignmentsSpec extends FlatSpec with Matchers {
       ,"result_20" -> Vector(4,5,6,7)
       ,"result_21" -> "result_21"
     )
-//    val result = executeScript(
-//      """
-//        |$result_1 += 1
-//        |$result_2 -= 3
-//        |$result_3 /= 0.5
-//        |$result_4 *= 1.5
-//        |$result_5 %= 2
-//        |$result_6 >>= 1
-//        |$result_7 <<= 2
-//        |$result_8 ~= 10
-//        |$result_9 &= 8
-//        |$result_10 |=9
-//        |$result_11 != 8
-//        |$result_12++
-//        |$result_13--
-//        |++$result_14
-//        |--$result_15
-//        |$result_16 &&= false
-//        |$result_17 ||= true
-//        |$result_18 ^= 10
-//        |$result_19 += "world"
-//        |$result_20 += [1,2,3]
-//        |$result_21 *=2
-//      """.stripMargin, globals )
-
-
     val result = executeScript(
       """
         |$result_1 += 1
         |$result_2 -= 3
         |$result_3 /= 0.5
-        |$result_4 *= 15
+        |$result_4 *= 1.5
+        |$result_5 %= 2
+        |$result_6 >>= 1
+        |$result_7 <<= 2
+        |$result_8 ~= 10
+        |$result_9 &= 8
+        |$result_10 |=9
+        |$result_11 != 8
+        |$result_12++
+        |$result_13--
+        |++$result_14
+        |--$result_15
+        |$result_16 &&= false
+        |$result_17 ||= true
+        |$result_18 ^= 10
+        |$result_19 += "world"
+        |$result_20 += [1,2,3]
+        |$result_21 *=2
       """.stripMargin, globals )
-
 
     result should contain("result_1" -> 2)
     result should contain("result_2" -> -1)
