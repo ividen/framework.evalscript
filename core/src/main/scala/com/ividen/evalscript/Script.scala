@@ -1,5 +1,7 @@
 package com.ividen.evalscript
 
+import scala.collection.mutable
+
 sealed trait ScriptElement
 case class Script(block: `{}`)
 
@@ -110,6 +112,12 @@ object Literal{
     case v: ArrayLiteral => v.value.map(literalToVal)
     case _ => l.value
   }
+
+  def resultToMap(l: Literal, n: String, result: java.util.Map[Any,Any]):Unit = literalToVal(l) match {
+    case x: Unit =>
+    case y => result.put(n,y)
+  }
+
   def valToLiteral(value: Any): Literal = value match {
     case s: String => StringLiteral(s)
     case x: Int => DecimalLiteral(BigDecimal(x))

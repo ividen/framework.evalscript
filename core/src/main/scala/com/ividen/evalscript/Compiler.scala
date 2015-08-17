@@ -202,13 +202,11 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
 
   private def generateGetGlobals: Unit = {
     val m = new MethodNode(ACC_PUBLIC, "getGlobals", s"()${typeSignature[scala.collection.immutable.Map[String, Literal]]}", null, Array.empty)
-    addIns(m, new TypeInsnNode(NEW, typeString[java.util.HashMap[_, _]]), new InsnNode(DUP), new MethodInsnNode(INVOKESPECIAL, typeString[java.util.HashMap[_, _]], "<init>", "()V"), new VarInsnNode(ASTORE, 1))
+    addIns(m, new TypeInsnNode(NEW, typeString[java.util.HashMap[_, _]]), new InsnNode(DUP)
+      , new MethodInsnNode(INVOKESPECIAL, typeString[java.util.HashMap[_, _]], "<init>", "()V"), new VarInsnNode(ASTORE, 1))
     for (g <- globals) {
-      addIns(m, new VarInsnNode(ALOAD, 1), new LdcInsnNode(g)
-        , new FieldInsnNode(GETSTATIC, s"${typeString[Literal]}$$", "MODULE$", s"L${typeString[Literal]}$$;")
-        , new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_$g", typeSignature[Literal])
-        , new MethodInsnNode(INVOKEVIRTUAL, s"${typeString[Literal]}$$", "literalToVal", s"(${typeSignature[Literal]})${typeSignature[Any]}")
-        , new MethodInsnNode(INVOKEINTERFACE, typeString[java.util.Map[_, _]], "put", s"(${typeSignature[Object]}${typeSignature[Object]})${typeSignature[Object]}"), new InsnNode(POP))
+      addIns(m , new FieldInsnNode(GETSTATIC, s"${typeString[Literal]}$$", "MODULE$", s"L${typeString[Literal]}$$;") , new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_$g", typeSignature[Literal])
+        , new LdcInsnNode(g), new VarInsnNode(ALOAD, 1) , new MethodInsnNode(INVOKEVIRTUAL, s"${typeString[Literal]}$$",  "resultToMap", s"(${typeSignature[Literal]}${typeSignature[String]}${typeSignature[java.util.Map[_, _]]})V"))
     }
 
     addIns(m, new FieldInsnNode(GETSTATIC, typeString[scala.collection.immutable.Map[_, _]] + "$", "MODULE$", s"L${typeString[scala.collection.immutable.Map[_, _]]}$$;")
@@ -260,17 +258,16 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
     addIns(new JumpInsnNode(IFEQ, lastLabel))
     processElement(blockInfo, _if.block)
     addIns(new JumpInsnNode(GOTO, blockLabel))
-    if (_else.isEmpty) {
-      addIns(lastLabel)
-    } else for (e <- _else) {
-      addIns(lastLabel)
+    addIns(lastLabel)
+    for (e <- _else) {
+      lastLabel = new LabelNode()
       for (c <- e.c) {
-        lastLabel = new LabelNode()
         checkCondition(blockInfo, c)
         addIns(new JumpInsnNode(IFEQ, lastLabel))
       }
       processElement(blockInfo, e.block)
       addIns(new JumpInsnNode(GOTO, blockLabel))
+      addIns(lastLabel)
     }
 
     addIns(blockLabel)
@@ -431,28 +428,6 @@ object ScriptCompiler {
     val digest = md.digest(s.toString.getBytes)
 
     s"G${Hex.encodeHexString(digest)}"
-  }
-
-
-  def main(args: Array[String]) {
-    val script =
-      """
-        |var l = 1
-        |switch (l){
-        |  case 1: println("1")
-        |  case 2: {
-        |     println("2")  break
-        |     }
-        |  default: println("default")
-        |}
-        |
-        |
-      """.stripMargin
-    println(script)
-    val s = EvalScriptParser.load(script)
-    val cs = compile(s)
-
-    println(execute(cs,Map.empty[String, Any]))
   }
 }
 

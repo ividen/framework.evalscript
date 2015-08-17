@@ -270,6 +270,5 @@ abstract class ExpressionSpec extends FlatSpec with Matchers {
 }
 
 class InterpreterExpressionSpec extends ExpressionSpec with InterpretedExecutor
-
 class CompiledExpressionSpec extends ExpressionSpec with CompiledExecutor
 
