@@ -11,10 +11,10 @@ trait Functions{
     case StringLiteral(v) => DecimalLiteral(v.length)
     case v => DecimalLiteral(v.toArrayLiteral.value.length)
   }
-  def substring(src: Literal, begin: Literal, end: Literal): StringLiteral = StringLiteral(src.toStringLiteral.value.substring(begin.toDecimalLiteral.value.toInt, end.toDecimalLiteral.value.toInt))
-  def toUpperCase(s: Literal): StringLiteral = StringLiteral(s.toStringLiteral.value.toUpperCase)
-  def toLowerCase(s: Literal): StringLiteral = StringLiteral(s.toStringLiteral.value.toLowerCase)
-  def indexOf(src: Literal, s: Literal): DecimalLiteral = DecimalLiteral(src.toStringLiteral.value.indexOf(s.toStringLiteral.value))
+  def substring(src: Literal, begin: Literal, end: Literal): Literal = StringLiteral(src.toStringLiteral.value.substring(begin.toDecimalLiteral.value.toInt, end.toDecimalLiteral.value.toInt))
+  def toUpperCase(s: Literal): Literal = StringLiteral(s.toStringLiteral.value.toUpperCase)
+  def toLowerCase(s: Literal): Literal = StringLiteral(s.toStringLiteral.value.toLowerCase)
+  def indexOf(src: Literal, s: Literal): Literal = DecimalLiteral(src.toStringLiteral.value.indexOf(s.toStringLiteral.value))
 
 
   def E() : Literal =  DecimalLiteral(math.E)
@@ -32,41 +32,41 @@ trait Functions{
   def exp(x : Literal) : Literal= DecimalLiteral(math.exp(x.toDecimalLiteral.value.toDouble))
   def log(x : Literal) : Literal= DecimalLiteral(math.log(x.toDecimalLiteral.value.toDouble))
   def sqrt(x : Literal) : Literal= DecimalLiteral(math.sqrt(x.toDecimalLiteral.value.toDouble))
-  def IEEEremainder(x : Literal, y : Literal) : DecimalLiteral= DecimalLiteral(math.IEEEremainder(x.toDecimalLiteral.value.toDouble,y.toDecimalLiteral.value.toDouble))
+  def IEEEremainder(x : Literal, y : Literal) : Literal= DecimalLiteral(math.IEEEremainder(x.toDecimalLiteral.value.toDouble,y.toDecimalLiteral.value.toDouble))
   def ceil(x : Literal) : Literal= DecimalLiteral(math.ceil(x.toDecimalLiteral.value.toDouble))
   def floor(x : Literal) : Literal= DecimalLiteral(math.floor(x.toDecimalLiteral.value.toDouble))
   def rint(x : Literal) : Literal= DecimalLiteral(math.floor(x.toDecimalLiteral.value.toDouble))
-  def atan2(y : Literal, x : Literal) : DecimalLiteral= DecimalLiteral(math.IEEEremainder(x.toDecimalLiteral.value.toDouble,y.toDecimalLiteral.value.toDouble))
-  def pow(x : Literal, y : Literal) : DecimalLiteral= DecimalLiteral(math.pow(x.toDecimalLiteral.value.toDouble, y.toDecimalLiteral.value.toDouble))
+  def atan2(y : Literal, x : Literal) : Literal= DecimalLiteral(math.IEEEremainder(x.toDecimalLiteral.value.toDouble,y.toDecimalLiteral.value.toDouble))
+  def pow(x : Literal, y : Literal) : Literal= DecimalLiteral(math.pow(x.toDecimalLiteral.value.toDouble, y.toDecimalLiteral.value.toDouble))
   def round(x : Literal) :Literal = DecimalLiteral(math.round(x.toDecimalLiteral.value.toDouble))
   def abs(x : Literal) : Literal = DecimalLiteral(x.toDecimalLiteral.value.abs)
   def max(x : Literal, y : Literal) : Literal = DecimalLiteral(x.toDecimalLiteral.value.max(y.toDecimalLiteral.value))
   def signum(x : Literal) : Literal = DecimalLiteral(x.toDecimalLiteral.value.signum)
-  def cbrt(x : Literal) : DecimalLiteral= DecimalLiteral(math.cbrt(x.toDecimalLiteral.value.toDouble))
-  def expm1(x : Literal) : DecimalLiteral= DecimalLiteral(math.expm1(x.toDecimalLiteral.value.toDouble))
-  def log1p(x : Literal) : DecimalLiteral= DecimalLiteral(math.log1p(x.toDecimalLiteral.value.toDouble))
-  def log10(x : Literal) : DecimalLiteral= DecimalLiteral(math.log10(x.toDecimalLiteral.value.toDouble))
-  def sinh(x : Literal) : DecimalLiteral= DecimalLiteral(math.sinh(x.toDecimalLiteral.value.toDouble))
-  def cosh(x : Literal) : DecimalLiteral= DecimalLiteral(math.cosh(x.toDecimalLiteral.value.toDouble))
-  def tanh(x : Literal) : DecimalLiteral= DecimalLiteral(math.tanh(x.toDecimalLiteral.value.toDouble))
-  def hypot(x : Literal, y : DecimalLiteral) : DecimalLiteral= DecimalLiteral(math.hypot(x.toDecimalLiteral.value.toDouble,y.toDecimalLiteral.value.toDouble))
-  def ulp(x : Literal) : DecimalLiteral= DecimalLiteral(math.ulp(x.toDecimalLiteral.value.toDouble))
+  def cbrt(x : Literal) : Literal= DecimalLiteral(math.cbrt(x.toDecimalLiteral.value.toDouble))
+  def expm1(x : Literal) : Literal= DecimalLiteral(math.expm1(x.toDecimalLiteral.value.toDouble))
+  def log1p(x : Literal) : Literal= DecimalLiteral(math.log1p(x.toDecimalLiteral.value.toDouble))
+  def log10(x : Literal) : Literal= DecimalLiteral(math.log10(x.toDecimalLiteral.value.toDouble))
+  def sinh(x : Literal) : Literal= DecimalLiteral(math.sinh(x.toDecimalLiteral.value.toDouble))
+  def cosh(x : Literal) : Literal= DecimalLiteral(math.cosh(x.toDecimalLiteral.value.toDouble))
+  def tanh(x : Literal) : Literal= DecimalLiteral(math.tanh(x.toDecimalLiteral.value.toDouble))
+  def hypot(x : Literal, y : Literal) : DecimalLiteral= DecimalLiteral(math.hypot(x.toDecimalLiteral.value.toDouble,y.toDecimalLiteral.value.toDouble))
+  def ulp(x : Literal) : Literal= DecimalLiteral(math.ulp(x.toDecimalLiteral.value.toDouble))
 
-  def debug(x: Literal)
-  def warn(x:Literal)
-  def info(x:Literal)
-  def error(x:Literal)
-  def print(x:Literal) = Predef.print(x.toStringLiteral.value)
-  def println(x:Literal) = Predef.println(x.toStringLiteral.value)
+  def debug(x: Literal):Unit
+  def warn(x:Literal):Unit
+  def info(x:Literal):Unit
+  def error(x:Literal):Unit
+  def print(x:Literal):Unit = Predef.print(x.toStringLiteral.value)
+  def println(x:Literal):Unit = Predef.println(x.toStringLiteral.value)
 }
 
 object Functions extends Functions{
   val logger = LoggerFactory.getLogger("com.ividen.evalscript")
 
-  override def debug(x: Literal) = logger.debug(x.toStringLiteral.value)
-  override def warn(x: Literal) = logger.warn(x.toStringLiteral.value)
-  override def info(x: Literal) = logger.info(x.toStringLiteral.value)
-  override def error(x: Literal) = logger.error(x.toStringLiteral.value)
+  override def debug(x: Literal):Unit = logger.debug(x.toStringLiteral.value)
+  override def warn(x: Literal):Unit = logger.warn(x.toStringLiteral.value)
+  override def info(x: Literal):Unit = logger.info(x.toStringLiteral.value)
+  override def error(x: Literal):Unit = logger.error(x.toStringLiteral.value)
 }
 
 object FunctionInvoker{
@@ -80,6 +80,7 @@ object FunctionInvoker{
   }
 
   def hasMethod(name: String) = methods.contains(name)
-  def invoke(name: String, args: Seq[Literal]) : Literal =  methods.get(name).fold[Literal](NullLiteral)(x => instance.reflectMethod(x).apply(args:_*).asInstanceOf[Literal])
-  def isReturnLiteral(name:String) = methods.get(name).fold(false)(x => x.returnType != universe.typeOf[Unit])
+  def invoke(name: String, args: Seq[Literal]): Literal = methods.get(name).fold[Literal](NullLiteral)(x => instance.reflectMethod(x).apply(args: _*).asInstanceOf[Literal])
+  def invokeProc(name: String, args: Seq[Literal]):Unit = methods.get(name).foreach(x => instance.reflectMethod(x).apply(args: _*))
+  def isReturnLiteral(name:String) = methods.get(name).fold(false)(x => x.returnType == universe.typeOf[Literal])
 }

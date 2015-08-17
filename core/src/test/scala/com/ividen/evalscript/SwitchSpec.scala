@@ -2,9 +2,6 @@ package com.ividen.evalscript
 
 import org.scalatest.{Matchers, FlatSpec}
 
-/**
- * Created by alexander.guzanov on 8/17/15.
- */
 abstract class SwitchSpec extends FlatSpec with Matchers {
   self: ScriptExecutor =>
 

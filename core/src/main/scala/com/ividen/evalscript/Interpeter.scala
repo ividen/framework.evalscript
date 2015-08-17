@@ -123,9 +123,16 @@ object Interpreter {
       case `<=`(l, r) => processExpression(l) <= processExpression(r)
       case GetVar(v: LocalVariable) => localContext(v)
       case GetVar(v: GlobalVairable) => globalContext(v)
-      case `call`(n,a) => FunctionInvoker.invoke(n,a.map(processExpression))
+      case `call`(n,a) => processCall(n, a)
     }
 
+    private def processCall(n: String, a: Seq[Expression]): Literal = {
+      if (FunctionInvoker.isReturnLiteral(n)) FunctionInvoker.invoke(n, a.map(processExpression))
+      else {
+        FunctionInvoker.invokeProc(n, a.map(processExpression))
+        NullLiteral
+      }
+    }
     private def processAssignment(assignment: `=`) = (assignment.l, assignment.r) match {
       case (v: LocalVariable, e) => localContext.set(v, processExpression(e))
       case (g: GlobalVairable, e) => globalContext.set(g, processExpression(e))

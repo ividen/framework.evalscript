@@ -40,7 +40,7 @@ object Generator {
 }
 
 
-private class Generator(b: `{}`, name: String) extends ClassLoader {
+private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.currentThread().getContextClassLoader) {
 
   import Generator._
 
@@ -81,17 +81,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader {
   private def acceptClass: Array[Byte] = {
     val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
     cn.accept(cw)
-    val result = cw.toByteArray
-    saveClass(result)
-    result
-  }
-
-  private def saveClass(result: Array[Byte]): Unit = {
-    val file = new File("/Users/alexander.guzanov/prj/TestClass.class")
-    file.createNewFile()
-    val stream = new FileOutputStream(file, false)
-    stream.write(result)
-    stream.close()
+    cw.toByteArray
   }
 
   private def initStaticVars = {
