@@ -47,21 +47,19 @@ object Interpreter {
     private def processSwitch(condition: Expression, cases: Seq[`case`], default: Option[`{}`]) ={
       val literal = processExpression(condition)
       @tailrec
-      def findCase(i: Iterator[`case`]): Boolean = {
+      def findCase(i: Iterator[`case`]): Unit = {
         if(i.hasNext){
           val next = i.next()
           if ((literal == processExpression(next.e)).toBooleanLiteral.value) {
             val breakable = new Breakable
             next.b.foreach(x =>new BlockExecution(x, globalContext, Some(localContext), Some(breakable)).process)
             while (!breakable.markBreak && i.hasNext) i.next.b.foreach(x =>new BlockExecution(x, globalContext, Some(localContext), Some(breakable)).process)
-            true
+            if(!breakable.markBreak) default.foreach(x =>processNewBlock(x))
           }else findCase(i)
-        }else{
-          false
-        }
+        }else default.foreach(x =>processNewBlock(x))
       }
 
-      if(!findCase(cases.iterator))default.foreach(x =>processNewBlock(x))
+      findCase(cases.iterator)
     }
 
     private def declareVar(e: `=`) = localContext.newVar(e.l, processExpression(e.r))
