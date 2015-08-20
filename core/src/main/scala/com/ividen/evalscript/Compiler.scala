@@ -137,7 +137,6 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
     literals ++= result
   }
 
-
   private def processBlock(parentBlock: Option[BlockInfo], b: `{}`) = {
     val blockInfo = createBlockInfo(parentBlock)
     addIns(blockInfo.start)
@@ -257,26 +256,31 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
   private def processContinue(blockInfo: BlockInfo): Unit = blockInfo.loopMarker.foreach(x => addIns(new JumpInsnNode(GOTO, x._1)))
   private def processBreak(blockInfo: BlockInfo): Unit =   blockInfo.loopMarker.foreach(x => addIns(new JumpInsnNode(GOTO, x._2)))
   private def processIfElse(blockInfo: BlockInfo, _if: `if`, _else: Seq[`else`]) = {
+    val blockLabel: LabelNode = processIff(blockInfo, _if)
+    _else.foreach(processElse(blockInfo, blockLabel, _))
+    addIns(blockLabel)
+  }
+
+  private def processElse(blockInfo: BlockInfo, blockLabel: LabelNode, e: `else`): Unit = {
+    val lastLabel = new LabelNode()
+    for (c <- e.c) {
+      checkCondition(blockInfo, c)
+      addIns(new JumpInsnNode(IFEQ, lastLabel))
+    }
+    processElement(blockInfo, e.block)
+    addIns(new JumpInsnNode(GOTO, blockLabel))
+    addIns(lastLabel)
+  }
+
+  private def processIff(blockInfo: BlockInfo, _if: `if`): LabelNode = {
     val blockLabel = new LabelNode()
-    var lastLabel = new LabelNode()
+    val lastLabel = new LabelNode()
     checkCondition(blockInfo, _if.c)
 
     addIns(new JumpInsnNode(IFEQ, lastLabel))
     processElement(blockInfo, _if.block)
-    addIns(new JumpInsnNode(GOTO, blockLabel))
-    addIns(lastLabel)
-    for (e <- _else) {
-      lastLabel = new LabelNode()
-      for (c <- e.c) {
-        checkCondition(blockInfo, c)
-        addIns(new JumpInsnNode(IFEQ, lastLabel))
-      }
-      processElement(blockInfo, e.block)
-      addIns(new JumpInsnNode(GOTO, blockLabel))
-      addIns(lastLabel)
-    }
-
-    addIns(blockLabel)
+    addIns(new JumpInsnNode(GOTO, blockLabel),lastLabel)
+    blockLabel
   }
 
   private def processSwitch(blockInfo: BlockInfo, e: Expression, cases: Seq[`case`], default: Option[`{}`]) = {
