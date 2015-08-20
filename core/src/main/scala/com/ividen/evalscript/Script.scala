@@ -136,8 +136,11 @@ object Literal{
 
 object NullLiteral extends Literal {
   type T = Unit
-
   override def value: Unit = {}
+  override def toBooleanLiteral: BooleanLiteral = BooleanLiteral(false)
+  override def toStringLiteral: StringLiteral = StringLiteral("null")
+  override def toDecimalLiteral: DecimalLiteral = DecimalLiteral(0)
+
 }
 case class BooleanLiteral(value: Boolean) extends Literal{
   type T = Boolean
@@ -204,7 +207,7 @@ case class StringLiteral(value: String) extends Literal{
   override def >=(l: Literal) : Literal = BooleanLiteral(value >= l.toStringLiteral.value)
   override def <=(l: Literal) : Literal = BooleanLiteral(value <= l.toStringLiteral.value)
   override def apply(l: Literal): Literal =  StringLiteral(String.valueOf(value.apply(l.toDecimalLiteral.value.toInt)))
-  override def toBooleanLiteral: BooleanLiteral = BooleanLiteral(if (value == 0) false else true)
+  override def toBooleanLiteral: BooleanLiteral = BooleanLiteral(if (value.isEmpty || "false".equals(value)) false else true)
   override def toStringLiteral: StringLiteral = this
   override def toDecimalLiteral: DecimalLiteral = DecimalLiteral(BigDecimal(value))
   override def toArrayLiteral: ArrayLiteral = ArrayLiteral(Vector(this))

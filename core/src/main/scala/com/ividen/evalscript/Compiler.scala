@@ -2,7 +2,7 @@ package com.ividen.evalscript
 
 import java.io.{FileOutputStream, File}
 import java.security.MessageDigest
-import java.util
+import java.{math, util}
 
 import org.apache.commons.codec.binary.{Hex, Base64, StringUtils}
 import org.objectweb.asm.tree._
@@ -10,7 +10,7 @@ import org.objectweb.asm.{MethodVisitor, ClassWriter}
 import org.objectweb.asm.Opcodes._
 import scala.annotation.tailrec
 import scala.collection
-import scala.collection.mutable
+import scala.collection.{GenMap, mutable}
 import scala.collection.parallel.mutable
 import scala.collection.parallel.mutable
 import scala.reflect.ClassTag
@@ -21,12 +21,7 @@ abstract class CompiledScript(globals: collection.immutable.Map[String, Any]) {
 
   def getGlobals: Map[String, Literal]
 
-  protected def checkCondition(l: Literal): Boolean = l match {
-    case DecimalLiteral(x) if x != 0 => true
-    case StringLiteral(x) if !x.isEmpty => true
-    case BooleanLiteral(x) if x => true
-    case _ => false
-  }
+  protected def checkCondition(l: Literal): Boolean = l.toBooleanLiteral.value == true
   protected def compareLiterals(l: Literal,r: Literal ): Literal = if (checkCondition(l == r)) null else l
   protected def getGlobal(n: String, globals: Map[String, Any]): Literal = Literal.valToLiteral(globals.getOrElse(n, NullLiteral))
 }
@@ -37,6 +32,34 @@ object Generator {
     , classOf[`~:`] -> "unary_$tilde", classOf[`-:`] -> "unary_$minus", classOf[`+:`] -> "unary_$plus", classOf[`<<`] -> "$less$less", classOf[`>>`] -> "$greater$greater", classOf[`&`] -> "$amp"
     , classOf[`^`] -> "$up", classOf[`|`] -> "$bar", classOf[`&&`] -> "$amp$amp", classOf[`||`] -> "$bar$bar", classOf[`:==`] -> "$eq$eq", classOf[`:!=`] -> "$bang$eq", classOf[`<`] -> "$less"
     , classOf[`>`] -> "$greater", classOf[`>=`] -> "$greater$eq", classOf[`<=`] -> "$less$eq")
+
+  val SIGN_MATH_BIG_DECIMAL: String = typeSignature[math.BigDecimal]
+  val SIGN_BIG_DECIMAL: String = typeSignature[BigDecimal]
+  val SIGN_LITERAL: String = typeSignature[Literal]
+  val SIGN_STRING: String = typeSignature[String]
+  val TYPE_BIG_DECIMAL: String = typeString[BigDecimal]
+  val TYPE_DECIMAL_LITERAL: String = typeString[DecimalLiteral]
+  val TYPE_ARRAY_LITERAL: String = typeString[ArrayLiteral]
+  val SIGN_UTIL_LIST: String = typeSignature[util.List[_]]
+  val SIGN_BUFFER: String = typeSignature[collection.mutable.Buffer[_]]
+  val TYPE_BUFFER: String = typeString[collection.mutable.Buffer[_]]
+  val SIGN_VECTOR: String = typeSignature[Vector[_]]
+  val SIGN_ARRAY_LITERAL: String = typeSignature[ArrayLiteral]
+  val TYPE_LITERAL: String = typeString[Literal]
+  val TYPE_UTIL_HASH_MAP: String = typeString[util.HashMap[_, _]]
+  val TYPE_IMMUTABLE_MAP: String = typeString[Map[_, _]]
+  val SIGN_UTIL_MAP: String = typeSignature[util.Map[_, _]]
+  val SIGN_MUTABLE_MAP: String = typeSignature[collection.mutable.Map[_, _]]
+  val SIGN_SEQ: String = typeSignature[Seq[_]]
+  val SIGN_GEN_MAP: String = typeSignature[GenMap[_, _]]
+  val TYPE_MUTABLE_MAP: String = typeString[collection.mutable.Map[_, _]]
+  val TYPE_BOOLEAN_LITERAL: String = typeString[BooleanLiteral]
+  val TYPE_STRING_LITERAL: String = typeString[StringLiteral]
+  val TYPE_COMPILED_SCRIPT: String = typeString[CompiledScript]
+  val SIGN_IMMUTABLE_MAP: String = typeSignature[Map[_, _]]
+
+  private def typeSignature[T](implicit tag: ClassTag[T]) = "L" + typeString[T](tag) + ";"
+  private def typeString[T](implicit tag: ClassTag[T]) = tag.runtimeClass.getName.replaceAll("\\.", "/")
 }
 
 
@@ -44,7 +67,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
 
   import Generator._
 
-  case class BlockInfo(start: LabelNode, end: LabelNode, index: Int, prevBlock: Option[BlockInfo]) {
+  case class BlockInfo(start: LabelNode, end: LabelNode, prevBlock: Option[BlockInfo]) {
     private val localVarsMapping: collection.mutable.Map[String, Int] = new collection.mutable.HashMap[String, Int]
     var currentLoopMarker : Option[LabelNode Pair LabelNode] = None
 
@@ -63,8 +86,6 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
 
   private var staticFieldCounter: Int = 0
   private var localVariableCounter: Int = 0
-  private var blockCounter: Int = 0
-
 
   def compile: Class[CompiledScript] = {
     initClassName
@@ -122,10 +143,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
     addIns(blockInfo.end)
   }
 
-  private def createBlockInfo(parentBlock: Option[BlockInfo]): BlockInfo = BlockInfo(new LabelNode(), new LabelNode(), {
-    blockCounter += 1;
-    blockCounter
-  }, parentBlock)
+  private def createBlockInfo(parentBlock: Option[BlockInfo]): BlockInfo = BlockInfo(new LabelNode(), new LabelNode(),  parentBlock)
   private def addIns(il: AbstractInsnNode*) = il.foreach(exec.instructions.add)
   private def addIns(m: MethodNode, il: AbstractInsnNode*) = il.foreach(m.instructions.add)
 
@@ -139,50 +157,46 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
     }
   }
 
-  private def initDecimal(m: MethodNode, n: String, v: BigDecimal): Unit = addIns(m, new TypeInsnNode(NEW, typeString[DecimalLiteral]), new InsnNode(DUP)
-    , new TypeInsnNode(NEW, typeString[BigDecimal]), new InsnNode(DUP)
+  private def initDecimal(m: MethodNode, n: String, v: BigDecimal): Unit = addIns(m, new TypeInsnNode(NEW, TYPE_DECIMAL_LITERAL), new InsnNode(DUP)
+    , new TypeInsnNode(NEW, TYPE_BIG_DECIMAL), new InsnNode(DUP)
     , new TypeInsnNode(NEW, typeString[java.math.BigDecimal]), new InsnNode(DUP)
-    , new LdcInsnNode(v.toString()), new MethodInsnNode(INVOKESPECIAL, typeString[java.math.BigDecimal], "<init>", s"(${typeSignature[String]})V")
-    , new MethodInsnNode(INVOKESPECIAL, typeString[BigDecimal], "<init>", s"(${typeSignature[java.math.BigDecimal]})V")
-    , new MethodInsnNode(INVOKESPECIAL, typeString[DecimalLiteral], "<init>", s"(${typeSignature[BigDecimal]})V"), new FieldInsnNode(PUTSTATIC, cn.name, n, typeSignature[Literal]))
+    , new LdcInsnNode(v.toString()), new MethodInsnNode(INVOKESPECIAL, typeString[java.math.BigDecimal], "<init>", s"(${SIGN_STRING})V")
+    , new MethodInsnNode(INVOKESPECIAL, TYPE_BIG_DECIMAL, "<init>", s"(${SIGN_MATH_BIG_DECIMAL})V")
+    , new MethodInsnNode(INVOKESPECIAL, TYPE_DECIMAL_LITERAL, "<init>", s"(${SIGN_BIG_DECIMAL})V"), new FieldInsnNode(PUTSTATIC, cn.name, n, SIGN_LITERAL))
 
-  private def initString(m: MethodNode, n: String, v: String): Unit = addIns(m, new TypeInsnNode(NEW, typeString[StringLiteral]), new InsnNode(DUP)
-    , new LdcInsnNode(v), new MethodInsnNode(INVOKESPECIAL, typeString[StringLiteral], "<init>", s"(${typeSignature[String]})V")
-    , new FieldInsnNode(PUTSTATIC, cn.name, n, typeSignature[Literal]))
+  private def initString(m: MethodNode, n: String, v: String): Unit = addIns(m, new TypeInsnNode(NEW, TYPE_STRING_LITERAL), new InsnNode(DUP)
+    , new LdcInsnNode(v), new MethodInsnNode(INVOKESPECIAL, TYPE_STRING_LITERAL, "<init>", s"(${SIGN_STRING})V")
+    , new FieldInsnNode(PUTSTATIC, cn.name, n, SIGN_LITERAL))
 
-  private def initBoolean(m: MethodNode, n: String, v: Boolean) = addIns(m, new TypeInsnNode(NEW, typeString[BooleanLiteral])
+  private def initBoolean(m: MethodNode, n: String, v: Boolean) = addIns(m, new TypeInsnNode(NEW, TYPE_BOOLEAN_LITERAL)
     , new InsnNode(DUP)
     , new LdcInsnNode(v)
-    , new MethodInsnNode(INVOKESPECIAL, typeString[BooleanLiteral], "<init>", s"(Z)V")
-    , new FieldInsnNode(PUTSTATIC, cn.name, n, typeSignature[Literal]))
-
+    , new MethodInsnNode(INVOKESPECIAL, TYPE_BOOLEAN_LITERAL, "<init>", s"(Z)V")
+    , new FieldInsnNode(PUTSTATIC, cn.name, n, SIGN_LITERAL))
   private def initArray(m: MethodNode, n: String, v: Vector[Literal]) = {
-    addIns(m, new FieldInsnNode(GETSTATIC, s"${typeString[ArrayLiteral]}$$", "MODULE$", s"L${typeString[ArrayLiteral]}$$;")
-      , new FieldInsnNode(GETSTATIC, "scala/collection/JavaConversions$", "MODULE$", "Lscala/collection/JavaConversions$;"), new IntInsnNode(BIPUSH, v.size), new TypeInsnNode(ANEWARRAY, typeString[Literal]))
+    addIns(m, new FieldInsnNode(GETSTATIC, s"${TYPE_ARRAY_LITERAL}$$", "MODULE$", s"L${TYPE_ARRAY_LITERAL}$$;")
+      , new FieldInsnNode(GETSTATIC, "scala/collection/JavaConversions$", "MODULE$", "Lscala/collection/JavaConversions$;"), new IntInsnNode(BIPUSH, v.size), new TypeInsnNode(ANEWARRAY, TYPE_LITERAL))
     for (i <- 0 to v.size-1) {
-      addIns(m, new InsnNode(DUP), new IntInsnNode(BIPUSH, i)  ,new FieldInsnNode(GETSTATIC, cn.name, getFieldName(v(i)), typeSignature[Literal])  , new InsnNode(AASTORE))
+      addIns(m, new InsnNode(DUP), new IntInsnNode(BIPUSH, i)  ,new FieldInsnNode(GETSTATIC, cn.name, getFieldName(v(i)), SIGN_LITERAL)  , new InsnNode(AASTORE))
     }
 
-    addIns(m, new MethodInsnNode(INVOKESTATIC, typeString[util.Arrays], "asList", s"([Ljava/lang/Object;)${typeSignature[java.util.List[_]]}")
-      , new MethodInsnNode(INVOKEVIRTUAL, "scala/collection/JavaConversions$", "asScalaBuffer", s"(${typeSignature[java.util.List[_]]})${typeSignature[collection.mutable.Buffer[_]]}")
-      , new MethodInsnNode(INVOKEINTERFACE, typeString[collection.mutable.Buffer[_]], "toVector", s"()${typeSignature[Vector[_]]}")
-      , new MethodInsnNode(INVOKEVIRTUAL, s"${typeString[ArrayLiteral]}$$", "apply", s"(${typeSignature[Vector[_]]})${typeSignature[ArrayLiteral]}")
-      , new FieldInsnNode(PUTSTATIC, cn.name, n, typeSignature[Literal]))
+    addIns(m, new MethodInsnNode(INVOKESTATIC, typeString[util.Arrays], "asList", s"([Ljava/lang/Object;)${SIGN_UTIL_LIST}")
+      , new MethodInsnNode(INVOKEVIRTUAL, "scala/collection/JavaConversions$", "asScalaBuffer", s"(${SIGN_UTIL_LIST})${SIGN_BUFFER}")
+      , new MethodInsnNode(INVOKEINTERFACE, TYPE_BUFFER, "toVector", s"()${SIGN_VECTOR}")
+      , new MethodInsnNode(INVOKEVIRTUAL, s"${TYPE_ARRAY_LITERAL}$$", "apply", s"(${SIGN_VECTOR})${SIGN_ARRAY_LITERAL}")
+      , new FieldInsnNode(PUTSTATIC, cn.name, n, SIGN_LITERAL))
   }
 
-  private def initClassName: Unit = cn.visit(V1_5, ACC_PUBLIC, name, null, typeString[CompiledScript], Array.empty)
-  private def typeSignature[T](implicit tag: ClassTag[T]) = "L" + typeString[T](tag) + ";"
-  private def typeString[T](implicit tag: ClassTag[T]) = tag.runtimeClass.getName.replaceAll("\\.", "/")
-
+  private def initClassName: Unit = cn.visit(V1_5, ACC_PUBLIC, name, null, TYPE_COMPILED_SCRIPT, Array.empty)
   private def generateConstructor: Unit = {
-    val constructor = new MethodNode(ACC_PUBLIC, "<init>", s"(${typeSignature[scala.collection.immutable.Map[_, _]]})V", null, Array.empty)
-    addIns(constructor, new VarInsnNode(ALOAD, 0), new VarInsnNode(ALOAD, 1), new MethodInsnNode(INVOKESPECIAL, typeString[CompiledScript], "<init>", s"(${typeSignature[scala.collection.immutable.Map[_, _]]})V"))
+    val constructor = new MethodNode(ACC_PUBLIC, "<init>", s"(${SIGN_IMMUTABLE_MAP})V", null, Array.empty)
+    addIns(constructor, new VarInsnNode(ALOAD, 0), new VarInsnNode(ALOAD, 1), new MethodInsnNode(INVOKESPECIAL, TYPE_COMPILED_SCRIPT, "<init>", s"(${SIGN_IMMUTABLE_MAP})V"))
     for (g <- globals) {
-      val node = new FieldNode(ACC_PRIVATE, s"g_$g", typeSignature[Literal], null, null)
+      val node = new FieldNode(ACC_PRIVATE, s"g_$g", SIGN_LITERAL, null, null)
       fields.add(node)
       addIns(constructor, new VarInsnNode(ALOAD, 0), new VarInsnNode(ALOAD, 0), new LdcInsnNode(g), new VarInsnNode(ALOAD, 1),
-        new MethodInsnNode(INVOKEVIRTUAL, cn.name, "getGlobal", s"(${typeSignature[String]}${typeSignature[scala.collection.immutable.Map[_, _]]})${typeSignature[Literal]}"),
-        new FieldInsnNode(PUTFIELD, cn.name, s"g_$g", typeSignature[Literal])
+        new MethodInsnNode(INVOKEVIRTUAL, cn.name, "getGlobal", s"(${SIGN_STRING}${SIGN_IMMUTABLE_MAP})${SIGN_LITERAL}"),
+        new FieldInsnNode(PUTFIELD, cn.name, s"g_$g", SIGN_LITERAL)
       )
     }
 
@@ -192,19 +206,19 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
 
   private def generateGetGlobals: Unit = {
     val m = new MethodNode(ACC_PUBLIC, "getGlobals", s"()${typeSignature[scala.collection.immutable.Map[String, Literal]]}", null, Array.empty)
-    addIns(m, new TypeInsnNode(NEW, typeString[java.util.HashMap[_, _]]), new InsnNode(DUP)
-      , new MethodInsnNode(INVOKESPECIAL, typeString[java.util.HashMap[_, _]], "<init>", "()V"), new VarInsnNode(ASTORE, 1))
+    addIns(m, new TypeInsnNode(NEW, TYPE_UTIL_HASH_MAP), new InsnNode(DUP)
+      , new MethodInsnNode(INVOKESPECIAL, TYPE_UTIL_HASH_MAP, "<init>", "()V"), new VarInsnNode(ASTORE, 1))
     for (g <- globals) {
-      addIns(m , new FieldInsnNode(GETSTATIC, s"${typeString[Literal]}$$", "MODULE$", s"L${typeString[Literal]}$$;") , new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_$g", typeSignature[Literal])
-        , new LdcInsnNode(g), new VarInsnNode(ALOAD, 1) , new MethodInsnNode(INVOKEVIRTUAL, s"${typeString[Literal]}$$",  "resultToMap", s"(${typeSignature[Literal]}${typeSignature[String]}${typeSignature[java.util.Map[_, _]]})V"))
+      addIns(m , new FieldInsnNode(GETSTATIC, s"${TYPE_LITERAL}$$", "MODULE$", s"L${TYPE_LITERAL}$$;") , new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_$g", SIGN_LITERAL)
+        , new LdcInsnNode(g), new VarInsnNode(ALOAD, 1) , new MethodInsnNode(INVOKEVIRTUAL, s"${TYPE_LITERAL}$$",  "resultToMap", s"(${SIGN_LITERAL}${SIGN_STRING}${SIGN_UTIL_MAP})V"))
     }
 
-    addIns(m, new FieldInsnNode(GETSTATIC, typeString[scala.collection.immutable.Map[_, _]] + "$", "MODULE$", s"L${typeString[scala.collection.immutable.Map[_, _]]}$$;")
+    addIns(m, new FieldInsnNode(GETSTATIC, TYPE_IMMUTABLE_MAP + "$", "MODULE$", s"L${TYPE_IMMUTABLE_MAP}$$;")
       , new FieldInsnNode(GETSTATIC, "scala/collection/JavaConversions$", "MODULE$", "Lscala/collection/JavaConversions$;"), new VarInsnNode(ALOAD, 1)
-      , new MethodInsnNode(INVOKEVIRTUAL, "scala/collection/JavaConversions$", "asScalaMap", s"(${typeSignature[java.util.Map[_, _]]})${typeSignature[scala.collection.mutable.Map[_, _]]}")
-      , new MethodInsnNode(INVOKEINTERFACE, typeString[scala.collection.mutable.Map[_, _]], "toSeq", s"()${typeSignature[scala.collection.Seq[_]]}")
-      , new MethodInsnNode(INVOKEVIRTUAL, typeString[scala.collection.immutable.Map[_, _]] + "$", "apply", s"(${typeSignature[scala.collection.Seq[_]]})${typeSignature[scala.collection.GenMap[_, _]]}")
-      , new TypeInsnNode(CHECKCAST, typeString[scala.collection.immutable.Map[_, _]])
+      , new MethodInsnNode(INVOKEVIRTUAL, "scala/collection/JavaConversions$", "asScalaMap", s"(${SIGN_UTIL_MAP})${SIGN_MUTABLE_MAP}")
+      , new MethodInsnNode(INVOKEINTERFACE, TYPE_MUTABLE_MAP, "toSeq", s"()${SIGN_SEQ}")
+      , new MethodInsnNode(INVOKEVIRTUAL, TYPE_IMMUTABLE_MAP + "$", "apply", s"(${SIGN_SEQ})${SIGN_GEN_MAP}")
+      , new TypeInsnNode(CHECKCAST, TYPE_IMMUTABLE_MAP)
     )
     addIns(m, new InsnNode(ARETURN))
     methods.add(m)
@@ -221,7 +235,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
   private def defineLocalVar(blockInfo: BlockInfo, l: Variable): Int = {
     localVariableCounter += 1
     blockInfo.define(l.name, localVariableCounter)
-    localVars.add(new LocalVariableNode(l.name, typeSignature[Literal], typeSignature[Literal], blockInfo.start, blockInfo.end, localVariableCounter))
+    localVars.add(new LocalVariableNode(l.name, SIGN_LITERAL, SIGN_LITERAL, blockInfo.start, blockInfo.end, localVariableCounter))
     localVariableCounter
   }
 
@@ -332,15 +346,15 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
   private def checkCondition(blockInfo: BlockInfo, c: Expression): Unit = {
     addIns(new VarInsnNode(ALOAD, 0))
     processExpression(blockInfo, c)
-    addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "checkCondition", s"(${typeSignature[Literal]})Z"))
+    addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "checkCondition", s"(${SIGN_LITERAL})Z"))
   }
 
-  private def compareLiterals(blockInfo: BlockInfo): Unit = addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "compareLiterals", s"(${typeSignature[Literal]}${typeSignature[Literal]})${typeSignature[Literal]}"))
+  private def compareLiterals(blockInfo: BlockInfo): Unit = addIns(new MethodInsnNode(INVOKEVIRTUAL, cn.name, "compareLiterals", s"(${SIGN_LITERAL}${SIGN_LITERAL})${SIGN_LITERAL}"))
 
   private def createField(l: Literal, map: collection.mutable.Map[Literal,String] = literals) = {
     staticFieldCounter += 1
     val n = s"v$staticFieldCounter"
-    val node = new FieldNode(ACC_PUBLIC + ACC_FINAL + ACC_STATIC, s"v$staticFieldCounter", typeSignature[Literal], null, null)
+    val node = new FieldNode(ACC_PUBLIC + ACC_FINAL + ACC_STATIC, s"v$staticFieldCounter", SIGN_LITERAL, null, null)
     fields.add(node)
     literals += l -> node.name
     node.name
@@ -364,12 +378,12 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
   private def processCall(blockInfo: BlockInfo, n: String, a: Seq[Expression]): Unit = {
     addIns(new FieldInsnNode(GETSTATIC, typeString[Functions] + "$", "MODULE$", s"L${typeString[Functions]}$$;"))
     a.reverse.foreach(processExpression(blockInfo, _))
-    addIns(new MethodInsnNode(INVOKEVIRTUAL, typeString[Functions] + "$", n, s"(${typeSignature[Literal] * a.length})${if (FunctionInvoker.isReturnLiteral(n)) typeSignature[Literal] else "V"}"))
+    addIns(new MethodInsnNode(INVOKEVIRTUAL, typeString[Functions] + "$", n, s"(${SIGN_LITERAL * a.length})${if (FunctionInvoker.isReturnLiteral(n)) SIGN_LITERAL else "V"}"))
   }
 
   private def processGetGlobalVar(v: GlobalVairable): Unit = {
     globals += v.name
-    addIns(new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_${v.name}", typeSignature[Literal]))
+    addIns(new VarInsnNode(ALOAD, 0), new FieldInsnNode(GETFIELD, cn.name, s"g_${v.name}", SIGN_LITERAL))
   }
 
   private def processGetLocalVar(blockInfo: BlockInfo, v: LocalVariable): Unit = {
@@ -395,30 +409,24 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
       globals += g.name
       addIns(new VarInsnNode(ALOAD, 0))
       processExpression(blockInfo, e);
-      addIns(new FieldInsnNode(PUTFIELD, cn.name, s"g_${g.name}", typeSignature[Literal]))
+      addIns(new FieldInsnNode(PUTFIELD, cn.name, s"g_${g.name}", SIGN_LITERAL))
     }
   }
 
-  private def invokeBinaryOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, typeString[Literal], mapping.getOrElse(c, ""), s"(${typeSignature[Literal]})${typeSignature[Literal]}"))
-  private def invokeUnaryOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, typeString[Literal], mapping.getOrElse(c, ""), s"()${typeSignature[Literal]}"))
-  private def fieldGet(l: Literal) = addIns(new FieldInsnNode(GETSTATIC, cn.name, getFieldName(l), typeSignature[Literal]))
+  private def invokeBinaryOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, TYPE_LITERAL, mapping.getOrElse(c, ""), s"(${SIGN_LITERAL})${SIGN_LITERAL}"))
+  private def invokeUnaryOperator(c: Class[_ <: Expression]) = addIns(new MethodInsnNode(INVOKEINTERFACE, TYPE_LITERAL, mapping.getOrElse(c, ""), s"()${SIGN_LITERAL}"))
+  private def fieldGet(l: Literal) = addIns(new FieldInsnNode(GETSTATIC, cn.name, getFieldName(l), SIGN_LITERAL))
 }
 
-
 object ScriptCompiler {
-  def compile(s: Script) = new Generator(s.block, generateClassName(s)).compile
+  def compile(s: Script,name: Option[String] = None) = new Generator(s.block,name.getOrElse(generateClassName(s))).compile
   def execute[T<:CompiledScript](c: Class[T], globals: Map[String,Any]): Map[String,Any] = {
     val instance = c.getConstructor(classOf[Map[_, _]]).newInstance(globals)
     instance.execute
     instance.getGlobals
   }
 
-  private def generateClassName(s: Script): String = {
-    val md = MessageDigest.getInstance("MD5")
-    val digest = md.digest(s.toString.getBytes)
-
-    s"G${Hex.encodeHexString(digest)}"
-  }
+  private def generateClassName(s: Script): String =   s"G${Hex.encodeHexString(MessageDigest.getInstance("MD5").digest(s.toString.getBytes))}"
 }
 
 
