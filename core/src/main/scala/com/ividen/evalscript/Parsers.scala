@@ -3,13 +3,11 @@ package com.ividen.evalscript
 import org.apache.commons.lang3.StringEscapeUtils
 import scala.util.matching.Regex
 import scala.util.parsing.combinator._
-import scala.reflect.runtime._
 
 object EvalScriptParser extends IfElseParser with RepeatParser with SwitchParser  with BreakParser
                            with StatementParser with ExpressionParser with LiteralParser with IdentifierParser
                            with AssignmentParser with KeywordParser with FunctionParser{
   def script : Parser[Script] = statementList ^^ (Script(_))
-
   def load(s: String) : Script = parseAll(script,s).get
 }
 

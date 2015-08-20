@@ -37,31 +37,33 @@ object Generator {
   val SIGN_BIG_DECIMAL: String = typeSignature[BigDecimal]
   val SIGN_LITERAL: String = typeSignature[Literal]
   val SIGN_STRING: String = typeSignature[String]
-  val TYPE_BIG_DECIMAL: String = typeString[BigDecimal]
-  val TYPE_DECIMAL_LITERAL: String = typeString[DecimalLiteral]
-  val TYPE_ARRAY_LITERAL: String = typeString[ArrayLiteral]
   val SIGN_UTIL_LIST: String = typeSignature[util.List[_]]
   val SIGN_BUFFER: String = typeSignature[collection.mutable.Buffer[_]]
-  val TYPE_BUFFER: String = typeString[collection.mutable.Buffer[_]]
   val SIGN_VECTOR: String = typeSignature[Vector[_]]
   val SIGN_ARRAY_LITERAL: String = typeSignature[ArrayLiteral]
-  val TYPE_LITERAL: String = typeString[Literal]
-  val TYPE_UTIL_HASH_MAP: String = typeString[util.HashMap[_, _]]
-  val TYPE_IMMUTABLE_MAP: String = typeString[Map[_, _]]
   val SIGN_UTIL_MAP: String = typeSignature[util.Map[_, _]]
   val SIGN_MUTABLE_MAP: String = typeSignature[collection.mutable.Map[_, _]]
   val SIGN_SEQ: String = typeSignature[Seq[_]]
   val SIGN_GEN_MAP: String = typeSignature[GenMap[_, _]]
+  val SIGN_IMMUTABLE_MAP: String = typeSignature[Map[_, _]]
   val TYPE_MUTABLE_MAP: String = typeString[collection.mutable.Map[_, _]]
   val TYPE_BOOLEAN_LITERAL: String = typeString[BooleanLiteral]
   val TYPE_STRING_LITERAL: String = typeString[StringLiteral]
   val TYPE_COMPILED_SCRIPT: String = typeString[CompiledScript]
-  val SIGN_IMMUTABLE_MAP: String = typeSignature[Map[_, _]]
+  val TYPE_UTIL_ARRAYS: String = typeString[util.Arrays]
+  val TYPE_MATH_BIG_DECIMAL: String = typeString[math.BigDecimal]
+  val TYPE_FUNCTIONS: String = typeString[Functions]
+  val TYPE_BIG_DECIMAL: String = typeString[BigDecimal]
+  val TYPE_DECIMAL_LITERAL: String = typeString[DecimalLiteral]
+  val TYPE_ARRAY_LITERAL: String = typeString[ArrayLiteral]
+  val TYPE_BUFFER: String = typeString[collection.mutable.Buffer[_]]
+  val TYPE_LITERAL: String = typeString[Literal]
+  val TYPE_UTIL_HASH_MAP: String = typeString[util.HashMap[_, _]]
+  val TYPE_IMMUTABLE_MAP: String = typeString[Map[_, _]]
 
   private def typeSignature[T](implicit tag: ClassTag[T]) = "L" + typeString[T](tag) + ";"
   private def typeString[T](implicit tag: ClassTag[T]) = tag.runtimeClass.getName.replaceAll("\\.", "/")
 }
-
 
 private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.currentThread().getContextClassLoader) {
 
@@ -159,8 +161,8 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
 
   private def initDecimal(m: MethodNode, n: String, v: BigDecimal): Unit = addIns(m, new TypeInsnNode(NEW, TYPE_DECIMAL_LITERAL), new InsnNode(DUP)
     , new TypeInsnNode(NEW, TYPE_BIG_DECIMAL), new InsnNode(DUP)
-    , new TypeInsnNode(NEW, typeString[java.math.BigDecimal]), new InsnNode(DUP)
-    , new LdcInsnNode(v.toString()), new MethodInsnNode(INVOKESPECIAL, typeString[java.math.BigDecimal], "<init>", s"(${SIGN_STRING})V")
+    , new TypeInsnNode(NEW, TYPE_MATH_BIG_DECIMAL), new InsnNode(DUP)
+    , new LdcInsnNode(v.toString()), new MethodInsnNode(INVOKESPECIAL, TYPE_MATH_BIG_DECIMAL, "<init>", s"(${SIGN_STRING})V")
     , new MethodInsnNode(INVOKESPECIAL, TYPE_BIG_DECIMAL, "<init>", s"(${SIGN_MATH_BIG_DECIMAL})V")
     , new MethodInsnNode(INVOKESPECIAL, TYPE_DECIMAL_LITERAL, "<init>", s"(${SIGN_BIG_DECIMAL})V"), new FieldInsnNode(PUTSTATIC, cn.name, n, SIGN_LITERAL))
 
@@ -180,7 +182,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
       addIns(m, new InsnNode(DUP), new IntInsnNode(BIPUSH, i)  ,new FieldInsnNode(GETSTATIC, cn.name, getFieldName(v(i)), SIGN_LITERAL)  , new InsnNode(AASTORE))
     }
 
-    addIns(m, new MethodInsnNode(INVOKESTATIC, typeString[util.Arrays], "asList", s"([Ljava/lang/Object;)${SIGN_UTIL_LIST}")
+    addIns(m, new MethodInsnNode(INVOKESTATIC, TYPE_UTIL_ARRAYS, "asList", s"([Ljava/lang/Object;)${SIGN_UTIL_LIST}")
       , new MethodInsnNode(INVOKEVIRTUAL, "scala/collection/JavaConversions$", "asScalaBuffer", s"(${SIGN_UTIL_LIST})${SIGN_BUFFER}")
       , new MethodInsnNode(INVOKEINTERFACE, TYPE_BUFFER, "toVector", s"()${SIGN_VECTOR}")
       , new MethodInsnNode(INVOKEVIRTUAL, s"${TYPE_ARRAY_LITERAL}$$", "apply", s"(${SIGN_VECTOR})${SIGN_ARRAY_LITERAL}")
@@ -205,7 +207,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
   }
 
   private def generateGetGlobals: Unit = {
-    val m = new MethodNode(ACC_PUBLIC, "getGlobals", s"()${typeSignature[scala.collection.immutable.Map[String, Literal]]}", null, Array.empty)
+    val m = new MethodNode(ACC_PUBLIC, "getGlobals", s"()${SIGN_IMMUTABLE_MAP}", null, Array.empty)
     addIns(m, new TypeInsnNode(NEW, TYPE_UTIL_HASH_MAP), new InsnNode(DUP)
       , new MethodInsnNode(INVOKESPECIAL, TYPE_UTIL_HASH_MAP, "<init>", "()V"), new VarInsnNode(ASTORE, 1))
     for (g <- globals) {
@@ -376,9 +378,9 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
   }
 
   private def processCall(blockInfo: BlockInfo, n: String, a: Seq[Expression]): Unit = {
-    addIns(new FieldInsnNode(GETSTATIC, typeString[Functions] + "$", "MODULE$", s"L${typeString[Functions]}$$;"))
+    addIns(new FieldInsnNode(GETSTATIC, TYPE_FUNCTIONS + "$", "MODULE$", s"L${TYPE_FUNCTIONS}$$;"))
     a.reverse.foreach(processExpression(blockInfo, _))
-    addIns(new MethodInsnNode(INVOKEVIRTUAL, typeString[Functions] + "$", n, s"(${SIGN_LITERAL * a.length})${if (FunctionInvoker.isReturnLiteral(n)) SIGN_LITERAL else "V"}"))
+    addIns(new MethodInsnNode(INVOKEVIRTUAL, TYPE_FUNCTIONS + "$", n, s"(${SIGN_LITERAL * a.length})${if (FunctionInvoker.isReturnLiteral(n)) SIGN_LITERAL else "V"}"))
   }
 
   private def processGetGlobalVar(v: GlobalVairable): Unit = {
