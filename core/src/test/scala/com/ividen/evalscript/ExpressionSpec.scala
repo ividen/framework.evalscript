@@ -9,13 +9,16 @@ abstract class ExpressionSpec extends FlatSpec with Matchers {
         """
           |var i = 10
           |var j = 20
-          |var s1="hello", s2='world'
+          |var s1="hello", s2=' world'
           |var a1=[1,2,3], a2=[4,5,6,7]
           |$result_1 = i+j-1-2
           |$result_2 = i+j-(1-2)
           |$result_3 = s1 + s2
           |$result_4 = a1 + a2
         """.stripMargin)
+      result should contain("result_1" -> 27)
+      result should contain("result_2" -> 31)
+      result should contain("result_3" -> "hello world")
       result should contain("result_4" -> Vector(1,2,3,4,5,6,7))
     }
 

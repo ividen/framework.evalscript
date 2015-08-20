@@ -1,6 +1,7 @@
 package com.ividen.evalscript
 
 import org.apache.commons.lang3.StringEscapeUtils
+import scala.util.matching.Regex
 import scala.util.parsing.combinator._
 import scala.reflect.runtime._
 
@@ -160,12 +161,28 @@ trait LiteralParser extends RegexParsers { self: KeywordParser =>
   private def arrayItems :Parser[ArrayLiteral]= repsep(scriptLiteral,",") ~ "]" ^^ {case  x ~ _ => ArrayLiteral(Vector.empty[Literal] ++ x)}
   private def decimalLiteral= """-?(\d+(\.\d*)?|\d*\.\d+)([eE][+-]?\d+)?[fFdD]?""".r ^^ toDecimalLiteral
   private def hexIntegerLiteral = "0(x|X)[0-9a-fA-F]+".r ^^ toHexDecimalLiteral
-  private def doubleQuoteStringLiteral = "\"" ~> "[^\"\n\t]*".r <~ "\"" ^^ toStringLiteral
-  private def singleQuoteStringLiteral = "'" ~> "[^'\n\t]*".r <~ "'" ^^ toStringLiteral
+  private def doubleQuoteStringLiteral = "\"" ~> new StrParser("[^\"\n\t]*".r) <~ "\"" ^^ toStringLiteral
+  private def singleQuoteStringLiteral = "'" ~> new StrParser("[^'\n\t]*".r) <~ "'" ^^ toStringLiteral
   private def toDecimalLiteral(x: String) = DecimalLiteral(BigDecimal(x))
   private def toHexDecimalLiteral(x: String) = DecimalLiteral(BigDecimal(Integer.parseInt(x.substring(2), 16)))
   private def toStringLiteral(x: String) = StringLiteral(StringEscapeUtils.unescapeJava(x))
   private def toBooleanLiteral(x: String) = BooleanLiteral(x.toBoolean)
+
+  class StrParser(r: Regex) extends Parser[String]{
+      def apply(in: Input) = {
+        val source = in.source
+        val offset = in.offset
+        val start = offset
+        (r findPrefixMatchOf (source.subSequence(start, source.length))) match {
+          case Some(matched) =>
+            Success(source.subSequence(start, start + matched.end).toString,
+              in.drop(start + matched.end - offset))
+          case None =>
+            val found = if (start == source.length()) "end of source" else "`"+source.charAt(start)+"'"
+            Failure("string matching regex `"+r+"' expected but "+found+" found", in.drop(start - offset))
+        }
+      }
+  }
 }
 
 trait IdentifierParser extends RegexParsers{self: KeywordParser =>
