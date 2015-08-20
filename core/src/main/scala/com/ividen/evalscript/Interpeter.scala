@@ -8,8 +8,6 @@ object Interpreter {
   private[Interpreter] class Breakable{
     var markBreak = false
     var markContinue = false
-    
-    override def toString = s"Breakable($markBreak,$markContinue)"
   }
 
   class ScriptExecution(script: Script, globalContext: GlobalContext) {
@@ -31,7 +29,7 @@ object Interpreter {
     private def continued = breakable.fold(false)(_.markContinue)
 
 
-    private def processElement(e: ScriptElement): Unit = e match {
+    private def processElement(e: ScriptElement): Unit = (e: @unchecked) match {
       case exp: Expression => processExpression(exp)
       case DeclareVars(l) => l.foreach(declareVar)
       case assignment: `=` => processAssignment(assignment)

@@ -240,7 +240,7 @@ private class Generator(b: `{}`, name: String) extends ClassLoader(Thread.curren
     localVariableCounter
   }
 
-  private def processElement(blockInfo: BlockInfo, e: ScriptElement): Unit = e match {
+  private def processElement(blockInfo: BlockInfo, e: ScriptElement): Unit = (e: @unchecked) match {
     case exp: Expression => processExpression(blockInfo, exp)
     case DeclareVars(l) => l.foreach(x => assignLocalVar(blockInfo, x.l, x.r))
     case assignment: `=` => processAssignment(blockInfo, assignment)

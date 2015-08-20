@@ -37,7 +37,7 @@ trait RepeatParser extends RegexParsers{ self: StatementParser with ExpressionPa
   def for_ : Parser[ScriptElement] = forKeyword~ "(" ~ assignments ~ ";" ~ expression ~ ";" ~ postFix ~ ")" ~ statement ^^ { case  _ ~ _~  init ~ _ ~ check ~ _ ~ postfix ~ _ ~ statement => `{}`(Seq(init, `while do`(check, `{}`(Seq(statement)),Some(postfix))))}
   def doWhile: Parser[ScriptElement] = doStatement ~ whileKeyword~ condition ^^ { case s ~ _ ~ c => `do while`(c, `{}`(Seq(s))) }
   def whileDo: Parser[ScriptElement] = whileKeyword~> condition ~ statement ^^ { case c ~ s => `while do`(c, `{}`(Seq(s))) }
-  private def postFix = assignments | expression
+  private def postFix = assignments
   private def doStatement = doKeyword ~> statement
   private def condition: Parser[Expression] = "(" ~> expression <~ ")"
 }
@@ -154,7 +154,6 @@ trait LiteralParser extends RegexParsers { self: KeywordParser =>
   def numericLiteral = notKeyword ~> (hexIntegerLiteral | decimalLiteral)
   def stringLiteral = notKeyword ~> (doubleQuoteStringLiteral | singleQuoteStringLiteral)
   def scriptLiteral = nullLiteral | booleanLiteral | numericLiteral | stringLiteral | arrayLiteral
-  def scriptLiterals = rep(scriptLiteral)
 
   private def arrayItems :Parser[ArrayLiteral]= repsep(scriptLiteral,",") ~ "]" ^^ {case  x ~ _ => ArrayLiteral(Vector.empty[Literal] ++ x)}
   private def decimalLiteral= """-?(\d+(\.\d*)?|\d*\.\d+)([eE][+-]?\d+)?[fFdD]?""".r ^^ toDecimalLiteral
